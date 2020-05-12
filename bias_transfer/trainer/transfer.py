@@ -5,7 +5,7 @@ from torch.utils.data import TensorDataset
 from bias_transfer.configs.trainer import TrainerConfig
 from bias_transfer.dataset.combined_dataset import CombinedDataset, JoinedDataset
 from bias_transfer.models.utils import weight_reset, freeze_params
-from bias_transfer.trainer.main_loop_modules import OutputSelector
+from bias_transfer.trainer.main_loop_modules import ModelWrapper
 from bias_transfer.utils.io import load_model
 from bias_transfer.trainer.main_loop import main_loop
 from mlutils.training import LongCycler
@@ -20,7 +20,7 @@ def compute_representation(model, criterion, device, data_loader, rep_name):
         data_loader=data_loader,
         epoch=0,
         n_iterations=len(data_loader),
-        modules=[OutputSelector(None, TrainerConfig(comment=""), None, None, None)],  # The data is already modified to have
+        modules=[ModelWrapper(None, TrainerConfig(comment=""), None, None, None)],  # The data is already modified to have
         train_mode=False,
         return_outputs=True,
     )

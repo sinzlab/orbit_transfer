@@ -6,6 +6,11 @@ class ModelWrapper(MainLoopModule):
     def __init__(self, model, config, device, data_loader, seed):
         super().__init__(model, config, device, data_loader, seed)
 
+    def post_forward(self, outputs, loss, targets, extra_losses, train_mode, **kwargs):
+        if isinstance(outputs, tuple):
+            return outputs[1], loss, targets
+        return outputs, loss, targets
+
     def pre_forward(self, model, inputs, shared_memory, train_mode, **kwargs):
         data_key = kwargs.pop("data_key", None)
         if self.mtl:
