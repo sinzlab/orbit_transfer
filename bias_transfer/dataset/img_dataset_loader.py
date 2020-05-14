@@ -62,12 +62,16 @@ def img_dataset_loader(seed, **config):
             if config.apply_noise.get("noise_std"):
                 std = config.apply_noise.get("noise_std")
                 noise_config = {
-                    "std": {np.random.choice(list(std.keys()), p=list(std.values())): 1.0}
+                    "std": {
+                        np.random.choice(list(std.keys()), p=list(std.values())): 1.0
+                    }
                 }
             elif config.apply_noise.get("noise_snr"):
                 snr = config.apply_noise.get("noise_snr")
                 noise_config = {
-                    "snr": {np.random.choice(list(snr.keys()), p=list(snr.values())): 1.0}
+                    "snr": {
+                        np.random.choice(list(snr.keys()), p=list(snr.values())): 1.0
+                    }
                 }
             return NoiseAugmentation.apply_noise(x, device="cpu", **noise_config)[0]
 
@@ -314,5 +318,5 @@ def img_dataset_loader(seed, **config):
                     pin_memory=config.pin_memory,
                     shuffle=False,
                 )
-        data_loaders["c_test"] = c_test_loaders
+        data_loaders["c_test"] = {"img_classification": c_test_loaders}
     return data_loaders

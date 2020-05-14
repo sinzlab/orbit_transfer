@@ -31,7 +31,7 @@ def move_data(batch_data, device):
     else:
         targets = batch_data[1][1].to(device)
 
-    if data_key != "img_classification":
+    if "img_classification" not in data_key:
         inputs, targets = (
             inputs.to(device),
             targets.to(device),
@@ -128,7 +128,7 @@ def main_loop(
                         train_mode,
                         **shared_memory
                     )
-                if data_key != "img_classification":
+                if "img_classification" not in data_key:
                     loss += neural_full_objective(
                         model,
                         outputs,
@@ -157,17 +157,15 @@ def main_loop(
                             total_loss_weight["neural"]
                         )
 
-                else:
+                elif data_key in criterion:
                     loss += criterion["img_classification"](outputs, targets)
                     _, predicted = outputs.max(1)
-                    total["img_classification"] += targets.size(0)
+                    total[data_key] += targets.size(0)
                     correct += predicted.eq(targets).sum().item()
-                    task_dict["img_classification"]["eval"] = (
-                        100.0 * correct / total["img_classification"]
-                    )
-                    total_loss["img_classification"] += loss.item()
-                    task_dict["img_classification"]["epoch_loss"] = average_loss(
-                        total_loss["img_classification"]
+                    task_dict[data_key]["eval"] = 100.0 * correct / total[data_key]
+                    total_loss[data_key] += loss.item()
+                    task_dict[data_key]["epoch_loss"] = average_loss(
+                        total_loss[data_key]
                     )
                     if loss_weighing:
                         total_loss_weight["img_classification"] += np.exp(criterion["img_classification"].log_w.item())

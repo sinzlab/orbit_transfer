@@ -13,13 +13,27 @@ class RepresentationMatching(NoiseAugmentation):
         else:
             self.criterion = nn.MSELoss()
 
-    def pre_forward(self, model, inputs, shared_memory, train_mode, **kwargs):
-        model, inputs1 = super().pre_forward(model, inputs, shared_memory, train_mode)
-        self.batch_size = inputs1.shape[0]
-        if self.config.representation_matching.get("only_for_clean", False):
-            # Perform representation matching only for the clean part of the input
-            self.clean_flags = (shared_memory["applied_std"] == 0.0).squeeze()
+    def pre_forward(
+        self,
+        model,
+        inputs,
+        shared_memory,
+        train_mode,
+        data_key="img_classification",
+        **kwargs
+    ):
+        self.batch_size = inputs.shape[0]
+        if "rep_matching" not in data_key:
+            model, inputs1 = super().pre_forward(
+                model, inputs, shared_memory, train_mode
+            )
+            if self.config.representation_matching.get("only_for_clean", False):
+                # Perform representation matching only for the clean part of the input
+                self.clean_flags = (shared_memory["applied_std"] == 0.0).squeeze()
+            else:
+                self.clean_flags = torch.ones((self.batch_size,)).type(torch.BoolTensor)
         else:
+            inputs1 = inputs
             self.clean_flags = torch.ones((self.batch_size,)).type(torch.BoolTensor)
         if self.config.representation_matching.get(
             "second_noise_std", None

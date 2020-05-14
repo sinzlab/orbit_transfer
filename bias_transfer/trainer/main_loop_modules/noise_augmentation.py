@@ -10,9 +10,12 @@ class NoiseAugmentation(MainLoopModule):
         super().__init__(model, config, device, data_loader, seed)
         self.rnd_gen = None
         if isinstance(data_loader, dict):
-            train_loader = data_loader["img_classification"]
+            loaders = data_loader
         else:
-            train_loader = data_loader.loaders["img_classification"]
+            loaders = data_loader.loaders
+        for k, v in loaders.items():
+            if "img_classification" in k:
+                train_loader = v
         transform_list = train_loader.dataset.transforms.transform.transforms
         # go through StandardTransform and Compose to get to  the actual transforms
         normalization = None

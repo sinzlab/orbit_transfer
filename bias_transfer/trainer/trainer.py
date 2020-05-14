@@ -59,16 +59,16 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         else config.loss_accum_batch_n
     )
 
+    val_keys = dataloaders["validation"].keys()
     val_n_iterations = {
-        k: len(LongCycler(dataset)) if k != "img_classification" else len(dataset)
+        k: len(LongCycler(dataset)) if "img_classification" not in k else len(dataset)
         for k, dataset in dataloaders["validation"].items()
     }
-
     test_n_iterations = {
-        k: None if k != "img_classification" else len(dataset)
+        k: None if "img_classification" not in k else len(dataset)
         for k, dataset in dataloaders["test"].items()
     }
-    best_eval = {k: {"eval": -100000, "loss": 100000} for k in val_n_iterations.keys()}
+    best_eval = {k: {"eval": -100000, "loss": 100000} for k in val_keys}
     # Main-loop modules:
     main_loop_modules = [
         globals().get(k)(model, config, device, train_loader, seed)
@@ -76,8 +76,8 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
     ]
 
     criterion, stop_closure = {}, {}
-    for k in val_n_iterations.keys():
-        if k != "img_classification":
+    for k in val_keys:
+        if "img_classification" not in k:
             if config.loss_weighing:
                 criterion[k] = NBLossWrapper().to(device)
             else:
@@ -282,8 +282,8 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
     # test the final model with noise on the dev-set
     # test the final model on the test set
     test_results_dict, dev_final_results_dict = {}, {}
-    for k in val_n_iterations.keys():
-        if k != "img_classification":
+    for k in val_keys:
+        if "img_classification" not in k:
             dev_final_results = test_neural_model(
                 model,
                 data_loader=dataloaders["validation"][k],
@@ -301,17 +301,19 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
             dev_final_results_dict.update(dev_final_results)
             test_results_dict.update(test_results)
         else:
-            dev_final_results = test_model(
-                model=model,
-                epoch=epoch,
-                n_iterations=val_n_iterations[k],
-                criterion=get_subdict(criterion, [k]),
-                device=device,
-                data_loader=get_subdict(dataloaders["validation"], [k]),
-                config=config,
-                noise_test=True,
-                seed=seed,
-            )
+            if "rep_matching" not in k:
+                dev_final_results = test_model(
+                    model=model,
+                    epoch=epoch,
+                    n_iterations=val_n_iterations[k],
+                    criterion=get_subdict(criterion, [k]),
+                    device=device,
+                    data_loader=get_subdict(dataloaders["validation"], [k]),
+                    config=config,
+                    noise_test=True,
+                    seed=seed,
+                )
+                dev_final_results_dict.update(dev_final_results)
 
             test_results = test_model(
                 model=model,
@@ -337,22 +339,24 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
     if "c_test" in dataloaders:
         test_c_results = {}
-        for c_category in list(dataloaders["c_test"].keys()):
-            test_c_results[c_category] = {}
-            for c_level, dataloader in dataloaders["c_test"][c_category].items():
-                results = test_model(
-                    model=model,
-                    n_iterations=len(dataloader),
-                    epoch=epoch,
-                    criterion=get_subdict(criterion, ["img_classification"]),
-                    device=device,
-                    data_loader={"img_classification": dataloader},
-                    config=config,
-                    noise_test=False,
-                    seed=seed,
-                    eval_type="Test-C",
-                )
-                test_c_results[c_category][c_level] = results
+        for k in val_keys:
+            if "rep_matching" not in k:
+                for c_category in list(dataloaders["c_test"][k].keys()):
+                    test_c_results[c_category] = {}
+                    for c_level, dataloader in dataloaders["c_test"][k][c_category].items():
+                        results = test_model(
+                            model=model,
+                            n_iterations=len(dataloader),
+                            epoch=epoch,
+                            criterion=get_subdict(criterion, [k]),
+                            device=device,
+                            data_loader={k: dataloader},
+                            config=config,
+                            noise_test=False,
+                            seed=seed,
+                            eval_type="Test-C",
+                        )
+                        test_c_results[c_category][c_level] = results
         final_results["test_c_results"] = test_c_results
 
     if "st_test" in dataloaders:
