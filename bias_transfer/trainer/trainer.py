@@ -7,6 +7,7 @@ from torch import nn, optim
 from torch.backends import cudnn as cudnn
 
 from bias_transfer.models.utils import freeze_params
+from bias_transfer.utils.warmup import GradualWarmupScheduler
 from bias_transfer.trainer.utils import (
     get_subdict,
     StopClosureWrapper,
@@ -157,9 +158,9 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
     if config.scheduler is not None:
         if config.scheduler == "adaptive":
             if config.scheduler_options['mtl']:
-                train_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=config.lr_decay)
+                lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=config.lr_decay)
             elif not config.scheduler_options['mtl']:
-                train_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                     optimizer,
                     factor=config.lr_decay,
                     patience=config.patience,
@@ -170,11 +171,21 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
                     threshold_mode=config.threshold_mode,
                 )
         elif config.scheduler == "manual":
-            train_scheduler = optim.lr_scheduler.MultiStepLR(
+            lr_scheduler = optim.lr_scheduler.MultiStepLR(
                 optimizer, milestones=config.scheduler_options['milestones'], gamma=config.lr_decay
             )
     else:
-        train_scheduler = None
+        lr_scheduler = None
+
+    if config.lr_warmup:
+        if lr_scheduler is None:
+            raise Exception("Warmup scheduler needs normal lr-scheduler to work!")
+        lr_scheduler = GradualWarmupScheduler(
+            optimizer,
+            multiplier=1,  # starts from 0
+            total_epoch=config.lr_warmup,  # gradually raises lr over x epochs
+            after_scheduler=lr_scheduler,  # this scheduler will be applied after warmup
+        )
 
     start_epoch = config.epoch
     path = "./checkpoint/ckpt.{}.pth".format(uid)
@@ -213,7 +224,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         tolerance=config.threshold,
         restore_best=config.restore_best,
         tracker=tracker,
-        scheduler=train_scheduler,
+        scheduler=lr_scheduler,
         lr_decay_steps=config.lr_decay_steps,
     )
 
@@ -255,9 +266,9 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
             cycler=config.train_cycler,
             cycler_args=config.train_cycler_args,
             loss_weighing=config.loss_weighing,
-            scale_loss=config.scale_loss
+            scale_loss=config.scale_loss,
+            lr_scheduler=lr_scheduler
         )
-
 
     dev_eval = StopClosureWrapper(stop_closure)(model)
     if epoch > 0:
@@ -277,7 +288,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         model, _, epoch = load_checkpoint("./checkpoint/ckpt.{}.pth".format(uid), model)
     else:
         for module in main_loop_modules:
-            module.pre_epoch(model, True, epoch + 1, optimizer=optimizer)
+            module.pre_epoch(model, True, epoch + 1, optimizer=optimizer, lr_scheduler=lr_scheduler)
 
     # test the final model with noise on the dev-set
     # test the final model on the test set
@@ -343,7 +354,9 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
             if "rep_matching" not in k:
                 for c_category in list(dataloaders["c_test"][k].keys()):
                     test_c_results[c_category] = {}
-                    for c_level, dataloader in dataloaders["c_test"][k][c_category].items():
+                    for c_level, dataloader in dataloaders["c_test"][k][
+                        c_category
+                    ].items():
                         results = test_model(
                             model=model,
                             n_iterations=len(dataloader),

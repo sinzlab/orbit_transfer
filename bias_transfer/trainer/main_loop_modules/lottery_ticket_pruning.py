@@ -1,3 +1,5 @@
+import collections
+
 import numpy as np
 import torch
 import copy
@@ -38,8 +40,19 @@ class LotteryTicketPruning(MainLoopModule):
             # save initial state_dict to reset to this point later:
             if not self.config.lottery_ticket.get("reinit"):
                 self.initial_state_dict = copy.deepcopy(model.state_dict())
+            self.initial_optim_state_dict = None
+            self.initial_scheduler_state_dict = None
+            self.initial_a_scheduler_state_dict = None
 
-    def pre_epoch(self, model, train_mode, epoch, optimizer=None, **kwargs):
+    def pre_epoch(
+        self, model, train_mode, epoch, optimizer=None, lr_scheduler=None, **kwargs
+    ):
+        if not self.initial_optim_state_dict:
+            self.initial_optim_state_dict = copy.deepcopy(optimizer.state_dict())
+        if not self.initial_scheduler_state_dict:
+            self.initial_scheduler_state_dict = copy.deepcopy(lr_scheduler.state_dict())
+            if hasattr(lr_scheduler, "after_scheduler") and lr_scheduler.after_scheduler:  # for warmup
+                self.initial_a_scheduler_state_dict = copy.deepcopy(lr_scheduler.after_scheduler.state_dict())
         if (
             self.config.lottery_ticket.get("pruning", True)
             and epoch in self.reset_epochs
@@ -49,9 +62,18 @@ class LotteryTicketPruning(MainLoopModule):
             self.prune_by_percentile(model, self.percent_per_round)
             print("Reset init in Epoch ", epoch, flush=True)
             self.reset_initialization(model, self.config.lottery_ticket.get("reinit"))
-            optimizer.state = getattr(optim, self.config.optimizer)(
-                model.parameters(), **self.config.optimizer_options
-            ).state  # reset optimizer
+            # Reset lr and scheduler:
+            if hasattr(lr_scheduler, "after_scheduler") and lr_scheduler.after_scheduler:  # for warmup
+                lr_scheduler.finished = False
+                lr_scheduler.after_scheduler.load_state_dict(copy.deepcopy(self.initial_a_scheduler_state_dict))
+                lr_scheduler.after_scheduler._step_count = 0
+                lr_scheduler.after_scheduler.last_epoch = 0
+                lr_scheduler.after_scheduler._get_lr_called_within_step = True
+            optimizer.load_state_dict(copy.deepcopy(self.initial_optim_state_dict))
+            lr_scheduler.load_state_dict(copy.deepcopy(self.initial_scheduler_state_dict))
+            lr_scheduler._step_count = 0
+            optimizer._step_count = 0
+            lr_scheduler.last_epoch = 0
 
     def post_backward(self, model, **kwargs):
         # Freezing Pruned weights by making their gradients Zero

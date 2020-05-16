@@ -59,6 +59,7 @@ def main_loop(
     cycler="LongCycler",
     cycler_args={},
     loss_weighing=False,
+    lr_scheduler=None,
 ):
     model.train() if train_mode else model.eval()
     task_dict = {}
@@ -92,7 +93,7 @@ def main_loop(
         ) as t:
 
             for module in modules:
-                module.pre_epoch(model, train_mode, epoch, optimizer=optimizer)
+                module.pre_epoch(model, train_mode, epoch, optimizer=optimizer, lr_scheduler=lr_scheduler)
 
             if train_mode:
                 optimizer.zero_grad()
