@@ -6,11 +6,13 @@ import torch
 from torch import nn, optim
 from torch.backends import cudnn as cudnn
 
+
 from bias_transfer.models.utils import freeze_params
-from bias_transfer.utils.warmup import GradualWarmupScheduler
 from bias_transfer.trainer.utils import (
     get_subdict,
     StopClosureWrapper,
+    SchedulerWrapper,
+    fixed_training_process,
 )
 from mlutils.training import LongCycler
 import nnfabrik as nnf
@@ -32,8 +34,20 @@ from bias_transfer.trainer import utils as uts
 
 def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
     config = TrainerConfig.from_dict(kwargs)
+    config.use_tpu = "XRT_TPU_CONFIG" in os.environ
     uid = nnf.utility.dj_helpers.make_hash(uid)
-    device = "cuda" if torch.cuda.is_available() and not config.force_cpu else "cpu"
+    if config.use_tpu:
+        import torch_xla.core.xla_model as xm
+        import torch_xla.distributed.data_parallel as dp
+
+        device = xm.xla_device()
+        num_cores = 8
+        devices = (
+            xm.get_xla_supported_devices(
+                max_devices=num_cores) if num_cores != 0 else [])
+        print("USING TPU", flush=True)
+    else:
+        device = "cuda" if torch.cuda.is_available() and not config.force_cpu else "cpu"
     best_epoch = 0
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -123,7 +137,8 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
                 optimizer=None,
                 loss_weighing=config.loss_weighing,
                 cycler_args={},
-                cycler="LongCycler"
+                cycler="LongCycler",
+                use_tpu=config.use_tpu,
             )
 
     if config.track_training:
@@ -178,14 +193,12 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         lr_scheduler = None
 
     if config.lr_warmup:
-        if lr_scheduler is None:
-            raise Exception("Warmup scheduler needs normal lr-scheduler to work!")
-        lr_scheduler = GradualWarmupScheduler(
-            optimizer,
-            multiplier=1,  # starts from 0
-            total_epoch=config.lr_warmup,  # gradually raises lr over x epochs
-            after_scheduler=lr_scheduler,  # this scheduler will be applied after warmup
+        import pytorch_warmup as warmup
+
+        warmup_scheduler = warmup.LinearWarmup(
+            optimizer, warmup_period=config.lr_warmup,
         )
+        lr_scheduler = SchedulerWrapper(lr_scheduler, warmup_scheduler)
 
     start_epoch = config.epoch
     path = "./checkpoint/ckpt.{}.pth".format(uid)
@@ -267,7 +280,8 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
             cycler_args=config.train_cycler_args,
             loss_weighing=config.loss_weighing,
             scale_loss=config.scale_loss,
-            lr_scheduler=lr_scheduler
+            lr_scheduler=lr_scheduler,
+            use_tpu=config.use_tpu,
         )
 
     dev_eval = StopClosureWrapper(stop_closure)(model)
@@ -288,7 +302,9 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         model, _, epoch = load_checkpoint("./checkpoint/ckpt.{}.pth".format(uid), model)
     else:
         for module in main_loop_modules:
-            module.pre_epoch(model, True, epoch + 1, optimizer=optimizer, lr_scheduler=lr_scheduler)
+            module.pre_epoch(
+                model, True, epoch + 1, optimizer=optimizer, lr_scheduler=lr_scheduler
+            )
 
     # test the final model with noise on the dev-set
     # test the final model on the test set

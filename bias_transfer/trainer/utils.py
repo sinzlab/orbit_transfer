@@ -19,6 +19,20 @@ def get_subdict(dictionary:dict, keys:list=None):
     return dictionary
 
 
+class SchedulerWrapper:
+    def __init__(self, lr_scheduler, warmup_scheduler):
+        self.lr_scheduler = lr_scheduler
+        self.warmup_scheduler = warmup_scheduler
+
+    def __getattr__(self, item):
+        if item != "warmup_scheduler":
+            return getattr(self.lr_scheduler, item)
+
+    def step(self, *args, **kwargs):
+        self.lr_scheduler.step()
+        self.warmup_scheduler.dampen()
+
+
 class StopClosureWrapper:
 
     def __init__(self, stop_closures):

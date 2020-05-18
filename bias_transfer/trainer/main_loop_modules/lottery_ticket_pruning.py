@@ -42,7 +42,7 @@ class LotteryTicketPruning(MainLoopModule):
                 self.initial_state_dict = copy.deepcopy(model.state_dict())
             self.initial_optim_state_dict = None
             self.initial_scheduler_state_dict = None
-            self.initial_a_scheduler_state_dict = None
+            self.initial_w_scheduler_state_dict = None
 
     def pre_epoch(
         self, model, train_mode, epoch, optimizer=None, lr_scheduler=None, **kwargs
@@ -51,8 +51,8 @@ class LotteryTicketPruning(MainLoopModule):
             self.initial_optim_state_dict = copy.deepcopy(optimizer.state_dict())
         if not self.initial_scheduler_state_dict:
             self.initial_scheduler_state_dict = copy.deepcopy(lr_scheduler.state_dict())
-            if hasattr(lr_scheduler, "after_scheduler") and lr_scheduler.after_scheduler:  # for warmup
-                self.initial_a_scheduler_state_dict = copy.deepcopy(lr_scheduler.after_scheduler.state_dict())
+            if hasattr(lr_scheduler, "warmup_scheduler") and lr_scheduler.warmup_scheduler:  # for warmup
+                self.initial_w_scheduler_state_dict = copy.deepcopy(lr_scheduler.warmup_scheduler.state_dict())
         if (
             self.config.lottery_ticket.get("pruning", True)
             and epoch in self.reset_epochs
@@ -63,16 +63,13 @@ class LotteryTicketPruning(MainLoopModule):
             print("Reset init in Epoch ", epoch, flush=True)
             self.reset_initialization(model, self.config.lottery_ticket.get("reinit"))
             # Reset lr and scheduler:
-            if hasattr(lr_scheduler, "after_scheduler") and lr_scheduler.after_scheduler:  # for warmup
-                lr_scheduler.finished = False
-                lr_scheduler.after_scheduler.load_state_dict(copy.deepcopy(self.initial_a_scheduler_state_dict))
-                lr_scheduler.after_scheduler._step_count = 0
-                lr_scheduler.after_scheduler.last_epoch = 0
-                lr_scheduler.after_scheduler._get_lr_called_within_step = True
+            if hasattr(lr_scheduler, "warmup_scheduler") and lr_scheduler.warmup_scheduler:  # for warmup
+                lr_scheduler.warmup_scheduler.load_state_dict(copy.deepcopy(self.initial_w_scheduler_state_dict))
+                lr_scheduler.warmup_scheduler.last_step = -1
             optimizer.load_state_dict(copy.deepcopy(self.initial_optim_state_dict))
+            optimizer._step_count = 0
             lr_scheduler.load_state_dict(copy.deepcopy(self.initial_scheduler_state_dict))
             lr_scheduler._step_count = 0
-            optimizer._step_count = 0
             lr_scheduler.last_epoch = 0
 
     def post_backward(self, model, **kwargs):
