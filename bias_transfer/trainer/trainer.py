@@ -34,21 +34,9 @@ from bias_transfer.trainer import utils as uts
 
 def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
     config = TrainerConfig.from_dict(kwargs)
-    config.use_tpu = "XRT_TPU_CONFIG" in os.environ
     uid = nnf.utility.dj_helpers.make_hash(uid)
-    if config.use_tpu:
-        import torch_xla.core.xla_model as xm
-        import torch_xla.distributed.data_parallel as dp
-
-        device = xm.xla_device()
-        num_cores = 8
-        devices = (
-            xm.get_xla_supported_devices(
-                max_devices=num_cores) if num_cores != 0 else [])
-        print("USING TPU", flush=True)
-    else:
-        device = "cuda" if torch.cuda.is_available() and not config.force_cpu else "cpu"
-    best_epoch = 0
+    device = "cuda" if torch.cuda.is_available() and not config.force_cpu else "cpu"
+    best_epoch = 0  # best test eval
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -281,7 +269,6 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
             loss_weighing=config.loss_weighing,
             scale_loss=config.scale_loss,
             lr_scheduler=lr_scheduler,
-            use_tpu=config.use_tpu,
         )
 
     dev_eval = StopClosureWrapper(stop_closure)(model)

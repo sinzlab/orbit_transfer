@@ -60,7 +60,6 @@ def main_loop(
     cycler_args={},
     loss_weighing=False,
     lr_scheduler=None,
-    use_tpu=False,
 ):
     model.train() if train_mode else model.eval()
     task_dict = {}
@@ -194,12 +193,7 @@ def main_loop(
                     for module in modules:
                         module.post_backward(model)
                     if (batch_idx + 1) % optim_step_count == 0:
-                        if use_tpu:
-                            import torch_xla.core.xla_model as xm
-
-                            xm.optimizer_step(optimizer, barrier=True)
-                        else:
-                            optimizer.step()
+                        optimizer.step()
                         optimizer.zero_grad()
 
     if return_outputs:
