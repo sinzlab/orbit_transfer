@@ -77,7 +77,7 @@ class ImageDatasetConfig(DatasetConfig):
             self.data_dir = kwargs.pop("data_dir", "./data/image_classification/")
             self.input_size = 224
             self.num_workers = kwargs.pop("num_workers", 8)
-            self.valid_size = kwargs.pop("valid_size", 0.01)
+            self.valid_size = kwargs.pop("valid_size", 0.0416)  # To get ~50K (test set size)
         else:
             raise NameError()
         self.add_corrupted_test = kwargs.pop("add_corrupted_test", True)
