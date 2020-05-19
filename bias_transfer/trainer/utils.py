@@ -29,7 +29,7 @@ class SchedulerWrapper:
             return getattr(self.lr_scheduler, item)
 
     def step(self, *args, **kwargs):
-        self.lr_scheduler.step()
+        self.lr_scheduler.step(*args, **kwargs)
         self.warmup_scheduler.dampen()
 
 
