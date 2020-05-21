@@ -42,6 +42,10 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
     # Model
     print("==> Building model..", flush=True)
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        model = nn.DataParallel(model)
     model = model.to(device)
     if device == "cuda":
         cudnn.benchmark = False

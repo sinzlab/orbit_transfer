@@ -23,7 +23,7 @@ class TrainerConfig(BaseConfig):
         self.patience = kwargs.pop("patience", 10)
         self.threshold = kwargs.pop("threshold", 0.0001)
         self.verbose = kwargs.pop("verbose", False)
-        self.min_lr = kwargs.pop("min_lr", 0.0001)  # lr scheduler min learning rate
+        self.min_lr = kwargs.pop("min_lr", 0.00001)  # lr scheduler min learning rate
         self.threshold_mode = kwargs.pop("threshold_mode", "rel")
         self.train_cycler = kwargs.pop("train_cycler", "LongCycler")
         self.train_cycler_args = kwargs.pop("train_cycler_args", {})

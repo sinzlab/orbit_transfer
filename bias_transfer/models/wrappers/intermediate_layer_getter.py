@@ -42,6 +42,16 @@ class IntermediateLayerGetter(nn.Module):
         self._model = model
         self.return_layers = return_layers
         self.keep_output = keep_output
+        for name, new_name in self.return_layers.items():
+            layer = rgetattr(self._model, name)
+
+            def hook(module, input, output):
+                module.register_buffer("intermediate_out", output)
+
+            try:
+                layer.register_forward_hook(hook)
+            except AttributeError as e:
+                raise AttributeError(f"Module {name} not found")
 
     def __getattribute__(self, name):
         if name == "_model":
@@ -54,24 +64,6 @@ class IntermediateLayerGetter(nn.Module):
 
     def __call__(self, *args, **kwargs):
         ret = OrderedDict()
-        handles = []
-        for name, new_name in self.return_layers.items():
-            layer = rgetattr(self._model, name)
-
-            def hook(module, input, output, new_name=new_name):
-                if new_name in ret:
-                    if type(ret[new_name]) is list:
-                        ret[new_name].append(output)
-                    else:
-                        ret[new_name] = [ret[new_name], output]
-                else:
-                    ret[new_name] = output
-
-            try:
-                h = layer.register_forward_hook(hook)
-            except AttributeError as e:
-                raise AttributeError(f"Module {name} not found")
-            handles.append(h)
 
         if self.keep_output:
             output = self._model(*args, **kwargs)
@@ -79,7 +71,15 @@ class IntermediateLayerGetter(nn.Module):
             self._model(*args, **kwargs)
             output = None
 
-        for h in handles:
-            h.remove()
+        for name, new_name in self.return_layers.items():
+            layer = rgetattr(self._model, name)
+            extra_output = layer.intermediate_out
+            if new_name in ret:
+                if type(ret[new_name]) is list:
+                    ret[new_name].append(extra_output)
+                else:
+                    ret[new_name] = [ret[new_name], extra_output]
+            else:
+                ret[new_name] = extra_output
 
         return ret, output

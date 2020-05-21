@@ -69,5 +69,7 @@ def transfer_model(to_model, config, criterion=None, device=None, data_loader=No
             weight_reset
         )  # model was only used to generated representations now we clear it again
     elif config.reset_linear:
+        if isinstance(model, nn.DataParallel):
+            model = model.module
         getattr(model, config.readout_name).apply(weight_reset)
     return data_loader
