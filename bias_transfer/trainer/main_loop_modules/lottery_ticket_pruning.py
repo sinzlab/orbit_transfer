@@ -47,42 +47,43 @@ class LotteryTicketPruning(MainLoopModule):
     def pre_epoch(
         self, model, train_mode, epoch, optimizer=None, lr_scheduler=None, **kwargs
     ):
-        if not self.initial_optim_state_dict and optimizer is not None:
-            self.initial_optim_state_dict = copy.deepcopy(optimizer.state_dict())
-        if not self.initial_scheduler_state_dict and lr_scheduler is not None:
-            self.initial_scheduler_state_dict = copy.deepcopy(lr_scheduler.state_dict())
-            if (
-                hasattr(lr_scheduler, "warmup_scheduler")
-                and lr_scheduler.warmup_scheduler
-            ):  # for warmup
-                self.initial_w_scheduler_state_dict = copy.deepcopy(
-                    lr_scheduler.warmup_scheduler.state_dict()
+        if self.config.lottery_ticket.get("pruning", True):
+            if not self.initial_optim_state_dict and optimizer is not None:
+                self.initial_optim_state_dict = copy.deepcopy(optimizer.state_dict())
+            if not self.initial_scheduler_state_dict and lr_scheduler is not None:
+                self.initial_scheduler_state_dict = copy.deepcopy(
+                    lr_scheduler.state_dict()
                 )
-        if (
-            self.config.lottery_ticket.get("pruning", True)
-            and epoch in self.reset_epochs
-            and train_mode
-        ):
-            # Prune the network, i.e. update the mask
-            self.prune_by_percentile(model, self.percent_per_round)
-            print("Reset init in Epoch ", epoch, flush=True)
-            self.reset_initialization(model, self.config.lottery_ticket.get("reinit"))
-            # Reset lr and scheduler:
-            if (
-                hasattr(lr_scheduler, "warmup_scheduler")
-                and lr_scheduler.warmup_scheduler
-            ):  # for warmup
-                lr_scheduler.warmup_scheduler.load_state_dict(
-                    copy.deepcopy(self.initial_w_scheduler_state_dict)
+                if (
+                    hasattr(lr_scheduler, "warmup_scheduler")
+                    and lr_scheduler.warmup_scheduler
+                ):  # for warmup
+                    self.initial_w_scheduler_state_dict = copy.deepcopy(
+                        lr_scheduler.warmup_scheduler.state_dict()
+                    )
+            if epoch in self.reset_epochs and train_mode:
+                # Prune the network, i.e. update the mask
+                self.prune_by_percentile(model, self.percent_per_round)
+                print("Reset init in Epoch ", epoch, flush=True)
+                self.reset_initialization(
+                    model, self.config.lottery_ticket.get("reinit")
                 )
-                lr_scheduler.warmup_scheduler.last_step = -1
-            optimizer.load_state_dict(copy.deepcopy(self.initial_optim_state_dict))
-            optimizer._step_count = 0
-            lr_scheduler.load_state_dict(
-                copy.deepcopy(self.initial_scheduler_state_dict)
-            )
-            lr_scheduler._step_count = 0
-            lr_scheduler.last_epoch = 0
+                # Reset lr and scheduler:
+                if (
+                    hasattr(lr_scheduler, "warmup_scheduler")
+                    and lr_scheduler.warmup_scheduler
+                ):  # for warmup
+                    lr_scheduler.warmup_scheduler.load_state_dict(
+                        copy.deepcopy(self.initial_w_scheduler_state_dict)
+                    )
+                    lr_scheduler.warmup_scheduler.last_step = -1
+                optimizer.load_state_dict(copy.deepcopy(self.initial_optim_state_dict))
+                optimizer._step_count = 0
+                lr_scheduler.load_state_dict(
+                    copy.deepcopy(self.initial_scheduler_state_dict)
+                )
+                lr_scheduler._step_count = 0
+                lr_scheduler.last_epoch = 0
 
     def post_backward(self, model, **kwargs):
         # Freezing Pruned weights by making their gradients Zero
