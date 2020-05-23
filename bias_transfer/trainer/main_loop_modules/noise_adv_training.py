@@ -11,12 +11,9 @@ class NoiseAdvTraining(MainLoopModule):
     def __init__(self, model, config, device, data_loader, seed):
         super().__init__(model, config, device, data_loader, seed)
         self.progress = 0.0
-        if isinstance(data_loader,LongCycler):
+        if isinstance(data_loader, LongCycler):
             data_loader = data_loader.loaders
-        self.step_size = (
-            float(config.max_iter * len(data_loader))
-            / data_loader["img_classification"].batch_size
-        )
+        self.step_size = 1 / (config.max_iter * len(data_loader["img_classification"]))
         if config.noise_adv_regression:
             self.criterion = nn.MSELoss()
         else:  # config.noise_adv_classification

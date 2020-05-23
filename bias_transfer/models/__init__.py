@@ -69,9 +69,7 @@ def classification_cnn_builder(data_loader, seed: int, **config):
 
     if config.pretrained:
         print("Downloading pretrained model:", flush=True)
-        state_dict = load_state_dict_from_url(
-            model_urls[config.type], progress=True
-        )
+        state_dict = load_state_dict_from_url(model_urls[config.type], progress=True)
         model.load_state_dict(state_dict)
 
     # Add wrappers
@@ -83,9 +81,13 @@ def classification_cnn_builder(data_loader, seed: int, **config):
         assert not config.self_attention
         model = NoiseAdvWrapper(
             model,
-            input_size=model.fc.in_features if "resnet" in config.type else model.n_features,
+            input_size=model.fc.in_features
+            if "resnet" in config.type
+            else model.n_features,
             hidden_size=model.fc.in_features if "resnet" in config.type else 4096,
             classification=config.noise_adv_classification,
+            num_noise_readout_layers=config.num_noise_readout_layers,
+            sigmoid_output=config.noise_sigmoid_output,
         )
     print("Model with {} parameters.".format(get_model_parameters(model)))
     return model

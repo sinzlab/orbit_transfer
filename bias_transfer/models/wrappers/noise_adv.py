@@ -27,6 +27,7 @@ class NoiseAdvWrapper(nn.Module):
         hidden_size,
         classification: bool = False,
         num_noise_readout_layers: int = 1,
+        sigmoid_output: bool = False,
     ):
         super().__init__()
         self.model = model
@@ -34,12 +35,12 @@ class NoiseAdvWrapper(nn.Module):
         noise_readout_layers = []
         for i in range(0, num_noise_readout_layers):
             in_size = input_size if i == 0 else hidden_size
-            out_size = 1 if i == num_noise_readout_layers-1 else hidden_size
+            out_size = 1 if i == num_noise_readout_layers - 1 else hidden_size
             noise_readout_layers.append(nn.Linear(in_size, out_size))
-            if i < num_noise_readout_layers-1:
+            if i < num_noise_readout_layers - 1:
                 noise_readout_layers.append(nn.ReLU())
         self.noise_readout = nn.Sequential(*noise_readout_layers)
-        self.nonlinearity = nn.Sigmoid() if classification else nn.ReLU()
+        self.nonlinearity = nn.Sigmoid() if classification or sigmoid_output else nn.ReLU()
 
     def forward(self, x, seed: int = None, noise_lambda=None):
         extra_output, out = self.model(x)

@@ -59,6 +59,8 @@ class ClassificationModelConfig(ModelConfig):
         # resnet specific
         self.noise_adv_classification = kwargs.pop("noise_adv_classification", False)
         self.noise_adv_regression = kwargs.pop("noise_adv_regression", False)
+        self.num_noise_readout_layers = kwargs.pop("num_noise_readout_layers", 1)
+        self.noise_sigmoid_output = kwargs.pop("noise_sigmoid_output", self.noise_adv_classification)
         self.get_intermediate_rep = kwargs.pop("get_intermediate_rep", {})
         if (
             self.noise_adv_classification
