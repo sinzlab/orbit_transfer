@@ -3,6 +3,8 @@ from functools import partial
 
 import torch
 import torch.backends.cudnn as cudnn
+
+from bias_transfer.analysis.utils import plot_preparation, save_plot
 from bias_transfer.utils.io import load_checkpoint
 import numpy as np
 from matplotlib import cm
@@ -44,6 +46,71 @@ class Analyzer:
         df = pd.concat([df.drop([1], axis=1), df[1].apply(pd.Series)], axis=1)
         df = df.rename(columns={0: "training_progress"})
         df = pd.concat([df.drop([1], axis=1), df[1].apply(pd.Series)], axis=1)
+
+        def convert_train_progress(x):
+            if isinstance(x, dict) and (
+                "standard_img_classification" in x.keys()
+                or "img_classification" in x.keys()
+            ):
+                return convert_train_progress(
+                    x.get("img_classification", x.get("standard_img_classification"))
+                )
+            elif isinstance(x, dict):
+                x_ = {}
+                for k, v in x.items():
+                    x_[k] = convert_train_progress(v)
+                return x_
+            elif isinstance(x, list):
+                return [convert_train_progress(x_) for x_ in x]
+            else:
+                return x
+
+        df["training_progress"] = df["training_progress"].apply(convert_train_progress)
+
+        def convert(x, prefix=""):
+            ret = x.get("img_classification", x.get("standard_img_classification"))
+            ret = {prefix + k: v for k, v in ret.items()}
+            return ret
+
+        df = pd.concat(
+            [
+                df.drop(["test_results"], axis=1),
+                df["test_results"]
+                .apply(partial(convert, prefix="test_"))
+                .apply(pd.Series),
+            ],
+            axis=1,
+        )
+        df["dev_eval"] = df["dev_eval"].apply(
+            lambda x: x.get("img_classification", x.get("standard_img_classification"))
+        )
+
+        def convert(x, key="epoch_loss"):
+            if key in x.keys():
+                return x[key]
+            if (
+                "standard_img_classification" in x.keys()
+                or "img_classification" in x.keys()
+            ):
+                return convert(
+                    x.get("img_classification", x.get("standard_img_classification")),
+                    key,
+                )
+            else:
+                return {k: convert(v, key) for k, v in x.items()}
+
+        df["dev_noise_eval"] = df["dev_final_results"].apply(
+            partial(convert, key="eval")
+        )
+        df["dev_noise_loss"] = df["dev_final_results"].apply(
+            partial(convert, key="epoch_loss")
+        )
+        df = df.drop(["dev_final_results"], axis=1)
+        df["c_test_eval"] = df["test_c_results"].apply(partial(convert, key="eval"))
+        df["c_test_loss"] = df["test_c_results"].apply(
+            partial(convert, key="epoch_loss")
+        )
+        df = df.drop(["test_c_results"], axis=1)
         return df
 
     def plot(
@@ -53,23 +120,10 @@ class Analyzer:
         save="",
         perf_measure="dev_eval",
         style="lighttalk",
-        legend_outside=True
+        legend_outside=True,
     ):
         if not to_plot in ("c_test_eval", "c_test_loss"):
-            fs = (16, 10) if "talk" in style else (12, 7.5)
-            dpi = 200 if "talk" in style else 200
-            sns.set()
-            if "light" in style:
-                sns.set_style("whitegrid")
-            if "ticks" in style:
-                sns.set_style("ticks")
-            if "dark" in style:
-                plt.style.use("dark_background")
-            if "talk" in style:
-                sns.set_context("talk")
-            else:
-                sns.set_context("paper")
-            fig, ax = plt.subplots(figsize=fs, dpi=dpi)
+            fig, ax = plot_preparation(style)
         # Plot
         if to_plot in ("test_eval", "test_epoch_loss"):
             sns.barplot(x="name", y=to_plot, hue="name", data=self.df, ax=ax)
@@ -126,10 +180,11 @@ class Analyzer:
                         continue
                     data_ = data[corruption].apply(pd.Series)
                     data_ = pd.concat([self.df["name"], data_], axis=1)
+                    data_ = data_.groupby("name").mean()
                     data_["Corruption"] = corruption
                     data_to_plot = pd.concat([data_to_plot, data_], axis=0, sort=True)
-                    data_to_plot.index = data_to_plot.name
-                    del data_to_plot["name"]
+                    # data_to_plot.index = data_to_plot.name
+                    # del data_to_plot["name"]
                 g = sns.FacetGrid(
                     data=data_to_plot,
                     col="Corruption",
@@ -177,17 +232,22 @@ class Analyzer:
                     ax.xaxis.offsetText.set_visible(False)
         if "talk" in style:
             if legend_outside:
-                plt.legend(fontsize=14, title_fontsize="14", bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+                plt.legend(
+                    fontsize=14,
+                    title_fontsize="14",
+                    bbox_to_anchor=(1.05, 1),
+                    loc=2,
+                    borderaxespad=0.0,
+                )
             else:
                 plt.legend(fontsize=14, title_fontsize="14")
         elif legend_outside:
-            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
         if save:
-            fig.savefig(
+            save_plot(
+                fig,
                 save + "_" + style,
-                facecolor=fig.get_facecolor(),
-                edgecolor=fig.get_edgecolor(),
-                bbox_inches="tight",
+                types=("png", "pdf", "pgf") if "nips" in style else ("png",),
             )
 
 
