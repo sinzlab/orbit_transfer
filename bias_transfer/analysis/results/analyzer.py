@@ -11,6 +11,49 @@ from matplotlib import cm
 from sklearn.cluster import AgglomerativeClustering
 from nnfabrik.main import *
 
+corruption_map = {
+    "shot_noise": "Shot Noise",
+    "impulse_noise": "Impulse Noise",
+    "speckle_noise": "Speckle Noise",
+    "gaussian_noise": "Gaussian Noise",
+    "defocus_blur": "Defocus Blur",
+    "gaussian_blur": "Gauss Blur",
+    "motion_blur": "Motion Blur",
+    "glass_blur": "Glass Blur",
+    "zoom_blur": "Zoom Blur",
+    "brightness": "Brightness",
+    "fog": "Fog",
+    "frost": "Frost",
+    "snow": "Snow",
+    "contrast": "Contrast",
+    "elastic_transform": "Elastic Transform",
+    "pixelate": "Pixelate",
+    "jpeg_compression": "JPEG Compression",
+    "saturate": "Saturate",
+    "spatter": "Spatter",
+}
+
+Res_Alex_Net_mean = dict()
+Res_Alex_Net_mean["Gaussian Noise"] = 0.886
+Res_Alex_Net_mean["Shot Noise"] = 0.894
+Res_Alex_Net_mean["Impulse Noise"] = 0.923
+Res_Alex_Net_mean["Defocus Blur"] = 0.820
+Res_Alex_Net_mean["Gauss Blur"] = 0.826
+Res_Alex_Net_mean["Glass Blur"] = 0.826
+Res_Alex_Net_mean["Motion Blur"] = 0.786
+Res_Alex_Net_mean["Zoom Blur"] = 0.798
+Res_Alex_Net_mean["Snow"] = 0.867
+Res_Alex_Net_mean["Frost"] = 0.827
+Res_Alex_Net_mean["Fog"] = 0.819
+Res_Alex_Net_mean["Brightness"] = 0.565
+Res_Alex_Net_mean["Contrast"] = 0.853
+Res_Alex_Net_mean["Elastic Transform"] = 0.646
+Res_Alex_Net_mean["Pixelate"] = 0.718
+Res_Alex_Net_mean["JPEG Compression"] = 0.607
+Res_Alex_Net_mean["Speckle Noise"] = 0.845
+Res_Alex_Net_mean["Spatter"] = 0.718
+Res_Alex_Net_mean["Saturate"] = 0.658
+
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -150,57 +193,23 @@ class Analyzer:
                 ax=ax,
             )
         elif to_plot in ("c_test_eval", "c_test_loss"):
-            for group in (
-                (
-                    "shot_noise",
-                    "impulse_noise",
-                    "speckle_noise",
-                    "gaussian_noise",
-                    "defocus_blur",
-                    "gaussian_blur",
-                    "motion_blur",
-                    "glass_blur",
-                    "zoom_blur",
-                    "brightness",
-                    "fog",
-                    "frost",
-                    "snow",
-                    "contrast",
-                    "elastic_transform",
-                    "pixelate",
-                    "jpeg_compression",
-                    "saturate",
-                    "spatter",
-                ),
-            ):
-                data = self.df[to_plot].apply(pd.Series)
-                data_to_plot = pd.DataFrame()
-                for corruption in group:
-                    if corruption not in data.columns:
-                        continue
-                    data_ = data[corruption].apply(pd.Series)
-                    data_ = pd.concat([self.df["name"], data_], axis=1)
-                    data_ = data_.groupby("name").mean()
-                    data_["Corruption"] = corruption
-                    data_to_plot = pd.concat([data_to_plot, data_], axis=0, sort=True)
-                    # data_to_plot.index = data_to_plot.name
-                    # del data_to_plot["name"]
-                g = sns.FacetGrid(
-                    data=data_to_plot,
-                    col="Corruption",
-                    col_wrap=4,
-                    sharey=True,
-                    sharex=True,
-                    # height=4
-                )
+            data_to_plot = self.extract_c_test_results(to_extract=to_plot)
+            g = sns.FacetGrid(
+                data=data_to_plot,
+                col="Corruption",
+                col_wrap=4,
+                sharey=True,
+                sharex=True,
+                # height=4
+            )
 
-                def draw_heatmap(data, *args, **kwargs):
-                    del data["Corruption"]
-                    # print(data)
-                    sns.heatmap(data, annot=True, cbar=False)
+            def draw_heatmap(data, *args, **kwargs):
+                del data["Corruption"]
+                # print(data)
+                sns.heatmap(data, annot=True, cbar=False)
 
-                g.map_dataframe(draw_heatmap)
-                fig = g.fig
+            g.map_dataframe(draw_heatmap)
+            fig = g.fig
         elif to_plot in ("training_progress",):
             data = self.df[to_plot].apply(pd.Series)
             data = data.applymap(
@@ -249,6 +258,55 @@ class Analyzer:
                 save + "_" + style,
                 types=("png", "pdf", "pgf") if "nips" in style else ("png",),
             )
+
+    def extract_c_test_results(self, to_extract="c_test_eval"):
+        corruptions = (
+            "shot_noise",
+            "impulse_noise",
+            "speckle_noise",
+            "gaussian_noise",
+            "defocus_blur",
+            "gaussian_blur",
+            "motion_blur",
+            "glass_blur",
+            "zoom_blur",
+            "brightness",
+            "fog",
+            "frost",
+            "snow",
+            "contrast",
+            "elastic_transform",
+            "pixelate",
+            "jpeg_compression",
+            "saturate",
+            "spatter",
+        )
+        data = self.df[to_extract].apply(pd.Series)
+        data_to_plot = pd.DataFrame()
+        for corruption in corruptions:
+            if corruption not in data.columns:
+                continue
+            data_ = data[corruption].apply(pd.Series)
+            data_ = pd.concat([self.df["name"], data_], axis=1)
+            data_ = data_.groupby("name").mean()
+            data_["Corruption"] = corruption
+            data_to_plot = pd.concat([data_to_plot, data_], axis=0, sort=True)
+        return data_to_plot
+
+    def calculate_c_scores(self):
+        c_data = self.extract_c_test_results()
+        df_ = c_data[c_data.columns[0:5]].apply(lambda x: 100 - x)
+        c_data = pd.concat([c_data, df_[df_.columns[0:5]].mean(axis=1)], axis=1)
+
+        def normalize_alexnet(row):
+            mean_error = row[0]
+            corruption = row["Corruption"]
+            ce = mean_error / Res_Alex_Net_mean[corruption_map[corruption]]
+            return pd.concat([row, pd.Series({"mCE": ce})])
+
+        c_data = c_data.apply(normalize_alexnet, axis=1)
+        c_data = c_data.groupby("name").mean()
+        return c_data
 
 
 def print_table_for_excel(table):
