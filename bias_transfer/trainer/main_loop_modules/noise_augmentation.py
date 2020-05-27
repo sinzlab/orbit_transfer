@@ -47,10 +47,12 @@ class NoiseAugmentation(MainLoopModule):
         img_min=0,
         img_max=1,
         noise_scale=None,
+        in_place=False,
     ):
+        if not in_place:
+            x = x.clone()
         if len(x.shape) == 3:
             x.unsqueeze(0)  # if we only have a single element
-
         with torch.no_grad():
             if std:
                 noise_levels = std

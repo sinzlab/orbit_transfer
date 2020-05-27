@@ -24,13 +24,16 @@ class RepresentationMatching(NoiseAugmentation):
     ):
         self.batch_size = inputs.shape[0]
         if "rep_matching" not in data_key:
+            # Apply noise to input and save as input1:
             model, inputs1 = super().pre_forward(
                 model, inputs, shared_memory, train_mode
             )
+            # Decide for which inputs to perform representation matching:
             if self.config.representation_matching.get("only_for_clean", False):
-                # Perform representation matching only for the clean part of the input
+                # Only for the clean part of the input:
                 self.clean_flags = (shared_memory["applied_std"] == 0.0).squeeze()
             else:
+                # For everything:
                 self.clean_flags = torch.ones((self.batch_size,)).type(torch.BoolTensor)
         else:
             inputs1 = inputs
@@ -38,6 +41,7 @@ class RepresentationMatching(NoiseAugmentation):
         if self.config.representation_matching.get(
             "second_noise_std", None
         ) or self.config.representation_matching.get("second_noise_snr", None):
+            # Apply noise to the selected inputs:
             inputs2, _ = self.apply_noise(
                 inputs[self.clean_flags],
                 self.device,
@@ -55,8 +59,10 @@ class RepresentationMatching(NoiseAugmentation):
 
     def post_forward(self, outputs, loss, targets, extra_losses, train_mode, **kwargs):
         extra_outputs, outputs = outputs[0], outputs[1]
+        # Retrieve representations that were selected for rep-matching:
         rep_1 = extra_outputs[self.rep][: self.batch_size][self.clean_flags]
         rep_2 = extra_outputs[self.rep][self.batch_size :]
+        # Compute the loss:
         if self.config.representation_matching.get("criterion", "cosine") == "cosine":
             o = torch.ones(
                 rep_1.shape[:1], device=self.device
@@ -64,6 +70,7 @@ class RepresentationMatching(NoiseAugmentation):
             sim_loss = self.criterion(rep_1, rep_2, o)
         else:
             sim_loss = self.criterion(rep_1, rep_2)
+        # Add to the normal loss:
         loss += self.config.representation_matching.get("lambda", 1.0) * sim_loss
         for k, v in extra_outputs.items():
             if isinstance(v, torch.Tensor):
