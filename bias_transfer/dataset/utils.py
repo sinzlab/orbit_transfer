@@ -10,6 +10,43 @@ from io import BytesIO
 from nnfabrik.utility.dj_helpers import make_hash
 
 
+def download_file_from_google_drive(id, destination):
+    """
+    Copied from: https://stackoverflow.com/a/39225039
+    :param id:
+    :param destination:
+    :return:
+    """
+
+    def get_confirm_token(response):
+        for key, value in response.cookies.items():
+            if key.startswith("download_warning"):
+                return value
+
+        return None
+
+    def save_response_content(response, destination):
+        CHUNK_SIZE = 32768
+
+        with open(destination, "wb") as f:
+            for chunk in response.iter_content(CHUNK_SIZE):
+                if chunk:  # filter out keep-alive new chunks
+                    f.write(chunk)
+
+    URL = "https://docs.google.com/uc?export=download"
+
+    session = requests.Session()
+
+    response = session.get(URL, params={"id": id}, stream=True)
+    token = get_confirm_token(response)
+
+    if token:
+        params = {"id": id, "confirm": token}
+        response = session.get(URL, params=params, stream=True)
+
+    save_response_content(response, destination)
+
+
 def compute_mean_std(train_set):
     """compute the mean and std of cifar100 dataset
     Args:
@@ -76,7 +113,7 @@ def get_dataset(url: str, data_dir: str, dataset_cls: str, download: bool) -> st
             "ImageNet",
             "TinyImageNet",
         ) or os.path.exists(finished_flag):
-            print("Images already downloaded...")
+            print("Images already downloaded in {}".format(dataset_dir))
             return dataset_dir
     elif download is False:
         raise FileNotFoundError(
@@ -84,24 +121,27 @@ def get_dataset(url: str, data_dir: str, dataset_cls: str, download: bool) -> st
         )
     else:
         os.makedirs(dataset_dir)
-    r = requests.get(url, stream=True)
-    print("Downloading " + url)
-    if url.endswith(".zip") or url.endswith("&download=1"):
-        zip_ref = zipfile.ZipFile(BytesIO(r.content))
-        zip_ref.extractall(dataset_dir)
-        extract_dir = os.path.join(dataset_dir, sorted(zip_ref.namelist())[0])
-        zip_ref.close()
-    elif url.endswith(".tar"):
-        tar_ref = tarfile.open(fileobj=BytesIO(r.content))
-        tar_ref.extractall(dataset_dir)
-        extract_dir = os.path.join(dataset_dir, sorted(tar_ref.getnames())[0])
-        tar_ref.close()
+    if dataset_cls == "CIFAR10-Semisupervised":
+        download_file_from_google_drive(url, os.path.join(dataset_dir, "train"))
     else:
-        raise NotImplementedError("Unsupported dataset format.")
-    # move to final destination
-    if dataset_cls in ("TinyImageNet-C", "CIFAR100-C", "CIFAR10-C"):
-        for content in os.listdir(extract_dir):
-            shutil.move(os.path.join(extract_dir, content), dataset_dir)
-        shutil.rmtree(extract_dir)
+        r = requests.get(url, stream=True)
+        print("Downloading " + url)
+        if url.endswith(".zip") or url.endswith("&download=1"):
+            zip_ref = zipfile.ZipFile(BytesIO(r.content))
+            zip_ref.extractall(dataset_dir)
+            extract_dir = os.path.join(dataset_dir, sorted(zip_ref.namelist())[0])
+            zip_ref.close()
+        elif url.endswith(".tar"):
+            tar_ref = tarfile.open(fileobj=BytesIO(r.content))
+            tar_ref.extractall(dataset_dir)
+            extract_dir = os.path.join(dataset_dir, sorted(tar_ref.getnames())[0])
+            tar_ref.close()
+        else:
+            raise NotImplementedError("Unsupported dataset format.")
+        # move to final destination
+        if dataset_cls in ("TinyImageNet-C", "CIFAR100-C", "CIFAR10-C"):
+            for content in os.listdir(extract_dir):
+                shutil.move(os.path.join(extract_dir, content), dataset_dir)
+            shutil.rmtree(extract_dir)
     Path(finished_flag).touch()
     return dataset_dir

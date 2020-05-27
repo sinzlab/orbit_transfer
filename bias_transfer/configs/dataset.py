@@ -45,7 +45,7 @@ class ImageDatasetConfig(DatasetConfig):
             )
             self.num_workers = 1
             self.valid_size = kwargs.pop("valid_size", 0.1)
-        elif self.dataset_cls == "CIFAR10":
+        elif "CIFAR10" in self.dataset_cls:  # also covers semi-supervised version
             self.train_data_mean = (0.49139968, 0.48215841, 0.44653091)
             self.train_data_std = (0.24703223, 0.24348513, 0.26158784)
             self.data_dir = kwargs.pop(

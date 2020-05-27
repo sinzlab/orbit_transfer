@@ -16,7 +16,7 @@ class CombinedDataset(Dataset):
     def __getitem__(self, index):
         ds_index = index % len(
             self.parallel_datasets
-        )  # this samples equally from all parallel datasets
+        )  # this samples equally from all parallel dataset_classes
         # TODO implement flexible sampling rates
         joined_dataset = self.parallel_datasets[ds_index]
         in_ds_index = (index // len(self.parallel_datasets)) % len(

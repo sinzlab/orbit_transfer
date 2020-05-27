@@ -6,13 +6,16 @@ import torchvision.transforms as transforms
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets
 from bias_transfer.configs.dataset import ImageDatasetConfig
-from bias_transfer.dataset.utils import get_dataset, create_ImageFolder_format
-from bias_transfer.dataset.npy_dataset import NpyDataset
-from bias_transfer.trainer.main_loop_modules import NoiseAugmentation
-from .dataset_filters import *
+from bias_transfer.dataset.dataset_classes.pkl_dataset import PklDataset
+from bias_transfer.dataset.utils import (
+    get_dataset,
+    create_ImageFolder_format,
+)
+from bias_transfer.dataset.dataset_classes.npy_dataset import NpyDataset
 
 DATASET_URLS = {
     "TinyImageNet": "http://cs231n.stanford.edu/tiny-imagenet-200.zip",
+    "CIFAR10-Semisupervised": "1LTw3Sb5QoiCCN-6Y5PEKkq9C9W60w-Hi",
     "CIFAR10-C": "https://zenodo.org/record/2535967/files/CIFAR-10-C.tar",
     "CIFAR100-C": "https://zenodo.org/record/3555552/files/CIFAR-100-C.tar",
     "TinyImageNet-C": "https://zenodo.org/record/2536630/files/Tiny-ImageNet-C.tar",
@@ -54,27 +57,36 @@ def img_dataset_loader(seed, **config):
     - valid_loader: validation set iterator.
     """
     config = ImageDatasetConfig.from_dict(config)
+    print("Loading dataset: {}".format(config.dataset_cls))
     torch.manual_seed(seed)
     np.random.seed(seed)
-    if config.apply_noise:
 
-        def apply_noise(x):
-            if config.apply_noise.get("noise_std"):
-                std = config.apply_noise.get("noise_std")
-                noise_config = {
-                    "std": {
-                        np.random.choice(list(std.keys()), p=list(std.values())): 1.0
-                    }
-                }
-            elif config.apply_noise.get("noise_snr"):
-                snr = config.apply_noise.get("noise_snr")
-                noise_config = {
-                    "snr": {
-                        np.random.choice(list(snr.keys()), p=list(snr.values())): 1.0
-                    }
-                }
-            return NoiseAugmentation.apply_noise(x, device="cpu", **noise_config)[0]
+    transform_test, transform_train, transform_val = get_transforms(config)
 
+    error_msg = "[!] valid_size should be in the range [0, 1]."
+    assert (config.valid_size >= 0) and (config.valid_size <= 1), error_msg
+
+    train_dataset, valid_dataset, test_dataset, c_test_datasets, st_test_dataset = get_datasets(
+        config, transform_test, transform_train, transform_val
+    )
+
+    filters = [globals().get(f)(config, train_dataset) for f in config.filters]
+    datasets_ = [train_dataset, valid_dataset, test_dataset]
+    if config.add_corrupted_test:
+        for c_ds in c_test_datasets.values():
+            datasets_ += list(c_ds.values())
+    for ds in datasets_:
+        for filt in filters:
+            filt.apply(ds)
+
+    data_loaders = get_data_loaders(
+        st_test_dataset, c_test_datasets, config, seed, test_dataset, train_dataset, valid_dataset
+    )
+
+    return data_loaders
+
+
+def get_transforms(config):
     if config.dataset_cls == "ImageNet":
         transform_train = [
             transforms.RandomResizedCrop(config.input_size)
@@ -83,7 +95,6 @@ def img_dataset_loader(seed, **config):
             transforms.RandomHorizontalFlip() if config.apply_augmentation else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
-            apply_noise if config.apply_noise else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
@@ -93,7 +104,6 @@ def img_dataset_loader(seed, **config):
             transforms.CenterCrop(224),
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
-            transforms.Lambda(apply_noise) if config.apply_noise else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
@@ -109,6 +119,9 @@ def img_dataset_loader(seed, **config):
         ]
     else:
         transform_train = [
+            transforms.ToPILImage()
+            if config.dataset_cls == "CIFAR10-Semisupervised"
+            else None,
             transforms.RandomCrop(config.input_size, padding=4)
             if config.apply_augmentation
             else None,
@@ -116,15 +129,16 @@ def img_dataset_loader(seed, **config):
             transforms.RandomRotation(15) if config.apply_augmentation else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
-            transforms.Lambda(apply_noise) if config.apply_noise else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
         ]
         transform_val = [
+            transforms.ToPILImage()
+            if config.dataset_cls == "CIFAR10-Semisupervised"
+            else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
-            transforms.Lambda(apply_noise) if config.apply_noise else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
@@ -145,11 +159,10 @@ def img_dataset_loader(seed, **config):
     transform_train = transforms.Compose(
         list(filter(lambda x: x is not None, transform_train))
     )
+    return transform_test, transform_train, transform_val
 
-    error_msg = "[!] valid_size should be in the range [0, 1]."
-    assert (config.valid_size >= 0) and (config.valid_size <= 1), error_msg
 
-    # load the dataset
+def get_datasets(config, transform_test, transform_train, transform_val):
     if (
         config.dataset_cls in list(torchvision.datasets.__dict__.keys())
         and config.dataset_cls != "ImageNet"
@@ -182,17 +195,31 @@ def img_dataset_loader(seed, **config):
             dataset_cls=config.dataset_cls,
             download=config.dowload,
         )
-        if config.dataset_cls != "ImageNet":
-            create_ImageFolder_format(dataset_dir)
 
         train_dir = os.path.join(dataset_dir, "train")
-        val_dir = os.path.join(dataset_dir, "val", "images")
+        if config.dataset_cls == "CIFAR10-Semisupervised":
+            train_dataset = PklDataset(
+                train_dir, transform=transform_train, root=config.data_dir
+            )
+            valid_dataset = PklDataset(
+                train_dir, transform=transform_val, root=config.data_dir
+            )
+            dataset_cls = torchvision.datasets.CIFAR10
+            test_dataset = dataset_cls(
+                root=config.data_dir,
+                train=False,
+                download=config.download,
+                transform=transform_test,
+            )
+        else:
+            if config.dataset_cls != "ImageNet":
+                create_ImageFolder_format(dataset_dir)
+            val_dir = os.path.join(dataset_dir, "val", "images")
+            train_dataset = datasets.ImageFolder(train_dir, transform=transform_train)
 
-        train_dataset = datasets.ImageFolder(train_dir, transform=transform_train)
+            valid_dataset = datasets.ImageFolder(train_dir, transform=transform_val)
 
-        valid_dataset = datasets.ImageFolder(train_dir, transform=transform_val)
-
-        test_dataset = datasets.ImageFolder(val_dir, transform=transform_test)
+            test_dataset = datasets.ImageFolder(val_dir, transform=transform_test)
 
     if config.add_stylized_test:
         st_dataset_dir = get_dataset(
@@ -204,6 +231,7 @@ def img_dataset_loader(seed, **config):
         st_test_dataset = datasets.ImageFolder(st_dataset_dir, transform=transform_test)
 
 
+    c_test_datasets = None
     if config.add_corrupted_test:
         urls = DATASET_URLS[config.dataset_cls + "-C"]
         if not isinstance(urls, dict):
@@ -244,28 +272,21 @@ def img_dataset_loader(seed, **config):
                             os.path.join(dataset_dir, c_category, c_level),
                             transform=transform_test,
                         )
+    return train_dataset, valid_dataset, test_dataset, c_test_datasets, st_test_dataset
 
-    filters = [globals().get(f)(config, train_dataset) for f in config.filters]
-    datasets_ = [train_dataset, valid_dataset, test_dataset]
-    if config.add_corrupted_test:
-        for c_ds in c_test_datasets.values():
-            datasets_ += list(c_ds.values())
-    for ds in datasets_:
-        for filt in filters:
-            filt.apply(ds)
 
+def get_data_loaders(
+    st_test_dataset, c_test_datasets, config, seed, test_dataset, train_dataset, valid_dataset
+):
     num_train = len(train_dataset)
     indices = list(range(num_train))
     split = int(np.floor(config.valid_size * num_train))
-
     if config.shuffle:
         np.random.seed(seed)
         np.random.shuffle(indices)
-
     train_idx, valid_idx = indices[split:], indices[:split]
     train_sampler = SubsetRandomSampler(train_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
-
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=config.batch_size,
@@ -282,7 +303,6 @@ def img_dataset_loader(seed, **config):
         pin_memory=config.pin_memory,
         shuffle=False,
     )
-
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         batch_size=config.batch_size,
