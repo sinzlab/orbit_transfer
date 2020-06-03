@@ -80,7 +80,6 @@ def early_stopping(
         scheduler=None,
         lr_decay_steps=1,
 ):
-
     training_status = model.training
     objective_closure = StopClosureWrapper(objective_closure)
 
