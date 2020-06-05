@@ -70,7 +70,7 @@ class ImageDatasetConfig(DatasetConfig):
                 )
             self.data_dir = kwargs.pop("data_dir", "./data/image_classification/")
             self.input_size = 64
-            self.num_workers = kwargs.pop("num_workers", 1)
+            self.num_workers = kwargs.pop("num_workers", 2)
             self.valid_size = kwargs.pop("valid_size", 0.1)
         elif self.dataset_cls == "ImageNet":
             self.train_data_mean = (0.485, 0.456, 0.406)
@@ -83,13 +83,14 @@ class ImageDatasetConfig(DatasetConfig):
             raise NameError()
         self.add_corrupted_test = kwargs.pop("add_corrupted_test", True)
         self.add_stylized_test = kwargs.pop("add_stylized_test", False)
+        self.use_c_test_as_val = kwargs.pop("use_c_test_as_val", False)
         self.shuffle = kwargs.pop("shuffle", True)
         self.show_sample = kwargs.pop("show_sample", False)
         self.filter_classes = kwargs.pop("filter_classes", None)  # (start,end)
         self.download = kwargs.pop(
             "download", False
         )  # For safety (e.g. to not download ImageNet by accident)
-        self.pin_memory = kwargs.pop("pin_memory", True)
+
         self.update(**kwargs)
 
     @property

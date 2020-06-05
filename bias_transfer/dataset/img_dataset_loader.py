@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
+from torch.utils.data.dataset import ChainDataset, ConcatDataset
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets
 from bias_transfer.configs.dataset import ImageDatasetConfig
@@ -174,14 +175,12 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             download=config.download,
             transform=transform_train,
         )
-
         valid_dataset = dataset_cls(
             root=config.data_dir,
             train=True,
             download=config.download,
             transform=transform_val,
         )
-
         test_dataset = dataset_cls(
             root=config.data_dir,
             train=False,
@@ -216,9 +215,7 @@ def get_datasets(config, transform_test, transform_train, transform_val):
                 create_ImageFolder_format(dataset_dir)
             val_dir = os.path.join(dataset_dir, "val", "images")
             train_dataset = datasets.ImageFolder(train_dir, transform=transform_train)
-
             valid_dataset = datasets.ImageFolder(train_dir, transform=transform_val)
-
             test_dataset = datasets.ImageFolder(val_dir, transform=transform_test)
 
     if config.add_stylized_test:
@@ -280,13 +277,31 @@ def get_data_loaders(
 ):
     num_train = len(train_dataset)
     indices = list(range(num_train))
-    split = int(np.floor(config.valid_size * num_train))
-    if config.shuffle:
-        np.random.seed(seed)
-        np.random.shuffle(indices)
-    train_idx, valid_idx = indices[split:], indices[:split]
-    train_sampler = SubsetRandomSampler(train_idx)
-    valid_sampler = SubsetRandomSampler(valid_idx)
+    if config.use_c_test_as_val:  # Use valid_size of the c_test set for validation
+        train_sampler = SubsetRandomSampler(indices)
+        datasets = []
+        val_indices = []
+        start_idx = 0
+        for c_category in c_test_datasets.keys():
+            for dataset in c_test_datasets[c_category].values():
+                num_val = len(dataset)
+                indices = list(range(start_idx, start_idx + num_val))
+                split = int(np.floor(config.valid_size * num_val))
+                if config.shuffle:
+                    np.random.shuffle(indices)
+                val_indices += indices[:split]
+                datasets.append(dataset)
+                start_idx += num_val
+        valid_dataset = ConcatDataset(datasets)
+        valid_sampler = SubsetRandomSampler(val_indices)
+    else:  # Use valid_size of the train set for validation
+        split = int(np.floor(config.valid_size * num_train))
+        if config.shuffle:
+            np.random.seed(seed)
+            np.random.shuffle(indices)
+        train_idx, valid_idx = indices[split:], indices[:split]
+        train_sampler = SubsetRandomSampler(train_idx)
+        valid_sampler = SubsetRandomSampler(valid_idx)
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=config.batch_size,
