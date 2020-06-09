@@ -7,14 +7,14 @@ def load_model(path, model, ignore_missing=False):
     print("==> Loading model..", flush=True)
     assert os.path.isfile(path), "Error: no model file found!"
     state_dict = torch.load(path)
-    set_state_dict(state_dict, model, ignore_missing)
+    set_state_dict(pretrained_dict=state_dict, model=model, ignore_missing=ignore_missing)
     return model
 
 
 def load_checkpoint(path, model, optimizer=None, ignore_missing=False):
     assert os.path.isfile(path), "Error: no checkpoint file found!"
     checkpoint = torch.load(path)
-    set_state_dict(checkpoint["net"], model, ignore_missing)
+    set_state_dict(pretrained_dict=checkpoint["net"], model=model, ignore_missing=ignore_missing)
     if optimizer is not None:
         optimizer.load_state_dict(checkpoint["optimizer"])
     best_acc = checkpoint["acc"]

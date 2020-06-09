@@ -71,6 +71,9 @@ def test_model(
                 )
     else:
         main_loop_modules = []
+        config = copy.deepcopy(config)
+        config.noise_snr = None
+        config.noise_std = None
         for k in config.main_loop_modules:
             if k != "NoiseAugmentation":
                 main_loop_modules.append(

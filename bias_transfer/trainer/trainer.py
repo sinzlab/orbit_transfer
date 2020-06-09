@@ -207,7 +207,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         )
 
     if config.freeze:
-        if config.freeze == ("core",):
+        if "core" in config.freeze and len(config.freeze) == 1:
             kwargs = {"not_to_freeze": (config.readout_name,)}
         elif config.freeze == ("readout",):
             kwargs = {"to_freeze": (config.readout_name,)}
