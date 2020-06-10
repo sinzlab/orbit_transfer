@@ -67,6 +67,7 @@ class ClassificationModelConfig(ModelConfig):
             or self.noise_adv_regression
             or kwargs.pop("rdm_prediction", False)
             or kwargs.pop("representation_matching", False)
+            and not self.get_intermediate_rep
         ):
             self.get_intermediate_rep["flatten"] = "core"
 
