@@ -120,6 +120,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
                 data_loader=get_subdict(dataloaders["validation"], [k]),
                 modules=main_loop_modules,
                 train_mode=False,
+                batch_norm_train_mode=False,
                 n_iterations=val_n_iterations[k],
                 return_outputs=False,
                 scale_loss=config.scale_loss,
@@ -207,13 +208,14 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         )
 
     if config.freeze:
-        if "core" in config.freeze and len(config.freeze) == 1:
+        batch_norm = "batch_norm" in config.freeze
+        if "core" in config.freeze:
             kwargs = {"not_to_freeze": (config.readout_name,)}
         elif config.freeze == ("readout",):
             kwargs = {"to_freeze": (config.readout_name,)}
         else:
             kwargs = {"to_freeze": config.freeze}
-        freeze_params(model, **kwargs)
+        freeze_params(model, batch_norm=batch_norm, **kwargs)
 
     print("==> Starting model {}".format(config.comment), flush=True)
     train_stats = []
@@ -266,6 +268,9 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
             n_iterations=train_n_iterations,
             modules=main_loop_modules,
             train_mode=True,
+            batch_norm_train_mode=(
+                not config.freeze_bn
+            ),  # we want eval mode to freeze BN
             epoch=epoch,
             optim_step_count=optim_step_count,
             cycler=config.train_cycler,
@@ -394,7 +399,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         )
         final_results["test_st_results"] = test_st_results
     return (
-        test_results_dict[list(config.loss_functions.keys())[0]]["eval"],
+        test_results_dict["bn_eval"][list(config.loss_functions.keys())[0]]["eval"],
         (train_stats, final_results),
         model.state_dict(),
     )

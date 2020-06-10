@@ -323,7 +323,7 @@ def get_data_loaders(
         batch_size=config.batch_size,
         num_workers=config.num_workers,
         pin_memory=config.pin_memory,
-        shuffle=False,
+        shuffle=True,
     )
     data_loaders = {
         "train": {"img_classification": train_loader},
@@ -351,7 +351,7 @@ def get_data_loaders(
                     batch_size=config.batch_size,
                     num_workers=config.num_workers,
                     pin_memory=config.pin_memory,
-                    shuffle=False,
+                    shuffle=True,
                 )
         data_loaders["c_test"] = {"img_classification": c_test_loaders}
     return data_loaders

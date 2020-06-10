@@ -1,3 +1,5 @@
+from functools import partial
+
 import torch
 from tqdm import tqdm
 import numpy as np
@@ -42,6 +44,15 @@ def move_data(batch_data, device):
     return inputs, targets, data_key, batch_dict
 
 
+def set_bn_to_eval(m, train_mode=False):
+    classname = m.__class__.__name__
+    if "BatchNorm" in classname:
+        if train_mode:
+            m.train()
+        else:
+            m.eval()
+
+
 def main_loop(
     model,
     criterion,
@@ -60,8 +71,10 @@ def main_loop(
     cycler_args={},
     loss_weighing=False,
     lr_scheduler=None,
+    batch_norm_train_mode=True,
 ):
     model.train() if train_mode else model.eval()
+    model.apply(partial(set_bn_to_eval, train_mode=batch_norm_train_mode))
     task_dict = {}
     correct = 0
     if loss_weighing:
