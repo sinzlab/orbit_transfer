@@ -283,6 +283,13 @@ def get_data_loaders(
         val_indices = []
         start_idx = 0
         for c_category in c_test_datasets.keys():
+            if c_category not in (
+                    "speckle_noise",
+                    "gaussian_blur",
+                    "spatter",
+                    "saturate",
+            ):
+                continue
             for dataset in c_test_datasets[c_category].values():
                 num_val = len(dataset)
                 indices = list(range(start_idx, start_idx + num_val))

@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from torch.utils.data import ConcatDataset
 from torchvision.transforms import transforms
 
 from .main_loop_module import MainLoopModule
@@ -16,7 +17,10 @@ class NoiseAugmentation(MainLoopModule):
         for k, v in loaders.items():
             if "img_classification" in k:
                 train_loader = v
-        transform_list = train_loader.dataset.transforms.transform.transforms
+        dataset = train_loader.dataset
+        if isinstance(dataset,ConcatDataset):
+            dataset = dataset.datasets[0]
+        transform_list = dataset.transforms.transform.transforms
         # go through StandardTransform and Compose to get to  the actual transforms
         normalization = None
         for trans in transform_list:

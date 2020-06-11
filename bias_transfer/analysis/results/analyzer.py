@@ -110,8 +110,8 @@ class Analyzer:
 
         df["training_progress"] = df["training_progress"].apply(convert_train_progress)
 
-        def convert(x, prefix=""):
-            ret = x.get("img_classification", x.get("standard_img_classification"))
+        def convert(x, prefix="", bn="bn_eval"):
+            ret = x[bn].get("img_classification", x.get("standard_img_classification"))
             ret = {prefix + k: v for k, v in ret.items()}
             return ret
 
@@ -128,9 +128,11 @@ class Analyzer:
             lambda x: x.get("img_classification", x.get("standard_img_classification"))
         )
 
-        def convert(x, key="epoch_loss"):
+        def convert(x, key="epoch_loss", bn="bn_eval"):
             if key in x.keys():
                 return x[key]
+            if bn in x.keys():
+                return convert(x[bn], key,)
             if (
                 "standard_img_classification" in x.keys()
                 or "img_classification" in x.keys()
@@ -143,10 +145,16 @@ class Analyzer:
                 return {k: convert(v, key) for k, v in x.items()}
 
         df["dev_noise_eval"] = df["dev_final_results"].apply(
-            partial(convert, key="eval")
+            partial(convert, key="eval", bn="bn_eval")
+        )
+        df["dev_noise_eval_bn_train"] = df["dev_final_results"].apply(
+            partial(convert, key="eval", bn="bn_train")
         )
         df["dev_noise_loss"] = df["dev_final_results"].apply(
-            partial(convert, key="epoch_loss")
+            partial(convert, key="epoch_loss", bn="bn_eval")
+        )
+        df["dev_noise_loss_bn_train"] = df["dev_final_results"].apply(
+            partial(convert, key="epoch_loss", bn="bn_train")
         )
         df = df.drop(["dev_final_results"], axis=1)
         df["c_test_eval"] = df["test_c_results"].apply(partial(convert, key="eval"))
@@ -170,7 +178,7 @@ class Analyzer:
         # Plot
         if to_plot in ("test_eval", "test_epoch_loss"):
             sns.barplot(x="name", y=to_plot, hue="name", data=self.df, ax=ax)
-        elif to_plot in ("dev_noise_eval", "dev_noise_loss"):
+        elif to_plot in ("dev_noise_eval", "dev_noise_loss","dev_noise_eval_bn_train", "dev_noise_loss_bn_train"):
             data = self.df[to_plot].apply(pd.Series)
             data = data["noise_" + noise_measure].apply(pd.Series)
             data = pd.concat([self.df["name"], data], axis=1)

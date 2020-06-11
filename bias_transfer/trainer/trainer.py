@@ -399,7 +399,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
         )
         final_results["test_st_results"] = test_st_results
     return (
-        test_results_dict["bn_eval"][list(config.loss_functions.keys())[0]]["eval"],
+        test_results_dict[list(config.loss_functions.keys())[0]]["eval"],
         (train_stats, final_results),
         model.state_dict(),
     )

@@ -32,72 +32,70 @@ def test_model(
     seed,
     noise_test: bool = True,
     eval_type="Validation",
+    bn_train_mode=False,
 ):
-    results = {}
-    for mode in ("bn_eval","bn_train"):
-        if config.noise_test and noise_test:
-            test_results = {}
-            for n_type, n_vals in config.noise_test.items():
-                test_results[n_type] = {}
-                for val in n_vals:
-                    val_str = stringify(val)
-                    config = copy.deepcopy(config)
-                    config.noise_snr = None
-                    config.noise_std = None
-                    setattr(config, n_type, val)
-                    main_loop_modules = [
-                        globals().get(loop)(model, config, device, data_loader, seed)
-                        for loop in ["NoiseAugmentation", "ModelWrapper"]
-                    ]
-                    if "OutputSelector" in config.main_loop_modules:
-                        main_loop_modules.append(
-                            globals().get("OutputSelector")(
-                                model, config, device, data_loader, seed
-                            )
-                        )
-                    test_results[n_type][val_str], _ = main_loop(
-                        model,
-                        criterion,
-                        device,
-                        None,
-                        eval_type=eval_type,
-                        data_loader=data_loader,
-                        n_iterations=n_iterations,
-                        modules=main_loop_modules,
-                        train_mode=False,
-                        batch_norm_train_mode=(mode == "bn_train"),
-                        epoch=epoch,
-                        loss_weighing=config.loss_weighing,
-                        scale_loss=config.scale_loss,
-                        cycler_args={},
-                        cycler="LongCycler"
-                    )
-        else:
-            main_loop_modules = []
-            config = copy.deepcopy(config)
-            config.noise_snr = None
-            config.noise_std = None
-            for k in config.main_loop_modules:
-                if k != "NoiseAugmentation":
+    if config.noise_test and noise_test:
+        test_results = {}
+        for n_type, n_vals in config.noise_test.items():
+            test_results[n_type] = {}
+            for val in n_vals:
+                val_str = stringify(val)
+                config = copy.deepcopy(config)
+                config.noise_snr = None
+                config.noise_std = None
+                setattr(config, n_type, val)
+                main_loop_modules = [
+                    globals().get(loop)(model, config, device, data_loader, seed)
+                    for loop in ["NoiseAugmentation", "ModelWrapper"]
+                ]
+                if "OutputSelector" in config.main_loop_modules:
                     main_loop_modules.append(
-                        globals().get(k)(model, config, device, data_loader, seed)
+                        globals().get("OutputSelector")(
+                            model, config, device, data_loader, seed
+                        )
                     )
-            test_results, _ = main_loop(
-                model,
-                criterion,
-                device,
-                None,
-                eval_type=eval_type,
-                data_loader=data_loader,
-                n_iterations=n_iterations,
-                modules=main_loop_modules,
-                train_mode=False,
-                batch_norm_train_mode=(mode == "bn_train"),
-                epoch=epoch,
-                loss_weighing=config.loss_weighing,
-                scale_loss=config.scale_loss,
-                cycler_args={},
-                cycler="LongCycler"
-            )
-        results[mode] = test_results
-    return results
+                test_results[n_type][val_str], _ = main_loop(
+                    model,
+                    criterion,
+                    device,
+                    None,
+                    eval_type=eval_type,
+                    data_loader=data_loader,
+                    n_iterations=n_iterations,
+                    modules=main_loop_modules,
+                    train_mode=False,
+                    batch_norm_train_mode=bn_train_mode,
+                    epoch=epoch,
+                    loss_weighing=config.loss_weighing,
+                    scale_loss=config.scale_loss,
+                    cycler_args={},
+                    cycler="LongCycler"
+                )
+    else:
+        main_loop_modules = []
+        config = copy.deepcopy(config)
+        config.noise_snr = None
+        config.noise_std = None
+        for k in config.main_loop_modules:
+            if k != "NoiseAugmentation":
+                main_loop_modules.append(
+                    globals().get(k)(model, config, device, data_loader, seed)
+                )
+        test_results, _ = main_loop(
+            model,
+            criterion,
+            device,
+            None,
+            eval_type=eval_type,
+            data_loader=data_loader,
+            n_iterations=n_iterations,
+            modules=main_loop_modules,
+            train_mode=False,
+            batch_norm_train_mode=bn_train_mode,
+            epoch=epoch,
+            loss_weighing=config.loss_weighing,
+            scale_loss=config.scale_loss,
+            cycler_args={},
+            cycler="LongCycler"
+        )
+    return test_results
