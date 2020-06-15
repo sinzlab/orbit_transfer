@@ -44,6 +44,7 @@ def test_model(
                 config.noise_snr = None
                 config.noise_std = None
                 setattr(config, n_type, val)
+                config.apply_noise_to_validation = True
                 main_loop_modules = [
                     globals().get(loop)(model, config, device, data_loader, seed)
                     for loop in ["NoiseAugmentation", "ModelWrapper"]

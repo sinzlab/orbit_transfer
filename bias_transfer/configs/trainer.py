@@ -92,6 +92,7 @@ class TrainerConfig(BaseConfig):
                 ],
             },
         )
+        self.apply_noise_to_validation = kwargs.pop("apply_noise_to_validation", True)
         self.noise_adv_classification = kwargs.pop("noise_adv_classification", False)
         self.noise_adv_regression = kwargs.pop("noise_adv_regression", False)
         self.noise_adv_loss_factor = kwargs.pop("noise_adv_loss_factor", 1.0)

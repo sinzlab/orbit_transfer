@@ -3,7 +3,7 @@ from torchvision.models.resnet import Bottleneck, BasicBlock
 from bias_transfer.models.resnet import ResNet
 
 
-def freeze_params(model, to_freeze=None, not_to_freeze=None, batch_norm=False):
+def freeze_params(model, to_freeze=None, not_to_freeze=None):
     for name, param in model.named_parameters():
         if to_freeze:
             freeze = False

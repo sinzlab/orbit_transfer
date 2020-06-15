@@ -111,7 +111,7 @@ class Analyzer:
         df["training_progress"] = df["training_progress"].apply(convert_train_progress)
 
         def convert(x, prefix="", bn="bn_eval"):
-            ret = x[bn].get("img_classification", x.get("standard_img_classification"))
+            ret = x.get("img_classification", x.get("standard_img_classification"))
             ret = {prefix + k: v for k, v in ret.items()}
             return ret
 

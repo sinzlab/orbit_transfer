@@ -64,6 +64,7 @@ def main_loop(
     scale_loss,
     epoch: int = 0,
     train_mode=True,
+    batch_norm_train_mode=True,
     return_outputs=False,
     optim_step_count=1,
     eval_type="Validation",
@@ -71,7 +72,6 @@ def main_loop(
     cycler_args={},
     loss_weighing=False,
     lr_scheduler=None,
-    batch_norm_train_mode=True,
 ):
     model.train() if train_mode else model.eval()
     model.apply(partial(set_bn_to_eval, train_mode=batch_norm_train_mode))

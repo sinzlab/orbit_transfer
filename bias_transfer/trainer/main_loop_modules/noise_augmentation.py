@@ -18,7 +18,7 @@ class NoiseAugmentation(MainLoopModule):
             if "img_classification" in k:
                 train_loader = v
         dataset = train_loader.dataset
-        if isinstance(dataset,ConcatDataset):
+        if isinstance(dataset, ConcatDataset):
             dataset = dataset.datasets[0]
         transform_list = dataset.transforms.transform.transforms
         # go through StandardTransform and Compose to get to  the actual transforms
@@ -40,6 +40,7 @@ class NoiseAugmentation(MainLoopModule):
             self.img_min = 0
             self.img_max = 1
             self.noise_scale = None
+        self.apply_to_eval = config.apply_noise_to_validation
 
     @staticmethod
     def apply_noise(
@@ -119,14 +120,17 @@ class NoiseAugmentation(MainLoopModule):
             )  # so that we always have the same noise for evaluation!
 
     def pre_forward(self, model, inputs, shared_memory, train_mode, **kwargs):
-        inputs, shared_memory["applied_std"] = self.apply_noise(
-            inputs,
-            self.device,
-            std=self.config.noise_std,
-            snr=self.config.noise_snr,
-            rnd_gen=self.rnd_gen if not train_mode else None,
-            img_min=self.img_min,
-            img_max=self.img_max,
-            noise_scale=self.noise_scale,
-        )
+        if self.apply_to_eval or train_mode:
+            inputs, shared_memory["applied_std"] = self.apply_noise(
+                inputs,
+                self.device,
+                std=self.config.noise_std,
+                snr=self.config.noise_snr,
+                rnd_gen=self.rnd_gen if not train_mode else None,
+                img_min=self.img_min,
+                img_max=self.img_max,
+                noise_scale=self.noise_scale,
+            )
+        else:
+            shared_memory["applied_std"] = torch.zeros([inputs.shape[0], 1], device=self.device)
         return model, inputs
