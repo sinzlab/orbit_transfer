@@ -19,7 +19,7 @@ def neural_dataset_loader(seed, **config):
     config["image_cache_path"] = os.path.join(data_dir, "images/individual")
     torch.manual_seed(seed)
     np.random.seed(seed)
-    dataset_fn = "nnvision.dataset_classes.monkey_static_loader"
+    dataset_fn = "nnvision.datasets.monkey_static_loader"
     data_loaders = builder.get_data(dataset_fn, config)
     dataloaders = {
         "train": data_loaders["train"],

@@ -12,7 +12,6 @@ from bias_transfer.trainer.utils import (
     get_subdict,
     StopClosureWrapper,
     SchedulerWrapper,
-    fixed_training_process,
 )
 from mlutils.training import LongCycler
 import nnfabrik as nnf
@@ -24,7 +23,7 @@ from bias_transfer.trainer.main_loop import main_loop
 from bias_transfer.trainer.test import test_neural_model, test_model
 from bias_transfer.utils.io import load_model, load_checkpoint, save_checkpoint
 from mlutils import measures as mlmeasures
-from mlutils.training import MultipleObjectiveTracker #, early_stopping
+from mlutils.training import MultipleObjectiveTracker
 from .utils import early_stopping
 from nnvision.utility import measures
 from nnvision.utility.measures import get_correlations, get_poisson_loss
@@ -131,7 +130,6 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
                 loss_weighing=config.loss_weighing,
                 cycler_args={},
                 cycler="LongCycler",
-                use_tpu=config.use_tpu,
             )
 
     if config.track_training:

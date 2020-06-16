@@ -218,6 +218,7 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             valid_dataset = datasets.ImageFolder(train_dir, transform=transform_val)
             test_dataset = datasets.ImageFolder(val_dir, transform=transform_test)
 
+    st_test_dataset = None
     if config.add_stylized_test:
         st_dataset_dir = get_dataset(
             DATASET_URLS[config.dataset_cls + "-ST"],
