@@ -1,20 +1,22 @@
 import os
 import torch
-from nnfabrik.utility.nn_helpers import set_state_dict
+from nnfabrik.utility.nn_helpers import load_state_dict
 
 
 def load_model(path, model, ignore_missing=False):
     print("==> Loading model..", flush=True)
     assert os.path.isfile(path), "Error: no model file found!"
     state_dict = torch.load(path)
-    set_state_dict(pretrained_dict=state_dict, model=model, ignore_missing=ignore_missing)
+    load_state_dict(model=model, state_dict=state_dict, ignore_missing=ignore_missing, match_names=True,
+                    ignore_dim_mismatch=True)
     return model
 
 
 def load_checkpoint(path, model, optimizer=None, ignore_missing=False):
     assert os.path.isfile(path), "Error: no checkpoint file found!"
     checkpoint = torch.load(path)
-    set_state_dict(pretrained_dict=checkpoint["net"], model=model, ignore_missing=ignore_missing)
+    load_state_dict(model=model, state_dict=checkpoint["net"], ignore_missing=ignore_missing, match_names=True,
+                    ignore_dim_mismatch=True)
     if optimizer is not None:
         optimizer.load_state_dict(checkpoint["optimizer"])
     best_acc = checkpoint["acc"]

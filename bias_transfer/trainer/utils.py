@@ -1,6 +1,7 @@
 from itertools import cycle
 from bias_transfer.utils.io import save_checkpoint
 from mlutils.training import copy_state
+from nnfabrik.utility.nn_helpers import load_state_dict
 import torch
 from torch import nn
 import numpy as np
@@ -98,7 +99,7 @@ def early_stopping(
 
     def finalize(model, best_state_dict, old_objective, best_objective):
         if restore_best:
-            model.load_state_dict(best_state_dict)
+            load_state_dict(model, best_state_dict, ignore_missing=True)  # if we have intermediate_out
             print(
                 "Restoring best model! {} ---> {}".format(
                     old_objective, best_objective
