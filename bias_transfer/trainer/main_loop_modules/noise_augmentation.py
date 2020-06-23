@@ -7,13 +7,13 @@ from .main_loop_module import MainLoopModule
 
 
 class NoiseAugmentation(MainLoopModule):
-    def __init__(self, model, config, device, data_loader, seed):
-        super().__init__(model, config, device, data_loader, seed)
+    def __init__(self, trainer):
+        super().__init__(trainer)
         self.rnd_gen = None
-        if isinstance(data_loader, dict):
-            loaders = data_loader
+        if isinstance(self.train_loader, dict):
+            loaders = self.train_loader
         else:
-            loaders = data_loader.loaders
+            loaders = self.train_loader.loaders
         for k, v in loaders.items():
             if "img_classification" in k:
                 train_loader = v
@@ -35,12 +35,12 @@ class NoiseAugmentation(MainLoopModule):
             self.img_min = -img_mean / img_std
             self.img_max = (1 - img_mean) / img_std
             self.noise_scale = 1 / img_std
-            self.noise_scale = self.noise_scale.view(1, -1, 1, 1).to(device)
+            self.noise_scale = self.noise_scale.view(1, -1, 1, 1).to(self.device)
         else:
             self.img_min = 0
             self.img_max = 1
             self.noise_scale = None
-        self.apply_to_eval = config.apply_noise_to_validation
+        self.apply_to_eval = self.config.apply_noise_to_validation
 
     @staticmethod
     def apply_noise(
@@ -110,8 +110,9 @@ class NoiseAugmentation(MainLoopModule):
                 x = torch.clamp(x, max=img_max, min=img_min)
         return x, applied_std
 
-    def pre_epoch(self, model, train_mode, epoch, **kwargs):
-        if not train_mode:
+    def pre_epoch(self, model, mode, **options):
+        super().pre_epoch(model, mode, **options)
+        if not self.train_mode:
             rnd_gen = torch.Generator(device=self.device)
             if isinstance(self.seed, np.generic):
                 self.seed = np.asscalar(self.seed)
@@ -119,18 +120,18 @@ class NoiseAugmentation(MainLoopModule):
                 self.seed
             )  # so that we always have the same noise for evaluation!
 
-    def pre_forward(self, model, inputs, shared_memory, train_mode, **kwargs):
-        if self.apply_to_eval or train_mode:
-            inputs, shared_memory["applied_std"] = self.apply_noise(
-                inputs,
-                self.device,
-                std=self.config.noise_std,
-                snr=self.config.noise_snr,
-                rnd_gen=self.rnd_gen if not train_mode else None,
-                img_min=self.img_min,
-                img_max=self.img_max,
-                noise_scale=self.noise_scale,
-            )
-        else:
-            shared_memory["applied_std"] = torch.zeros([inputs.shape[0], 1], device=self.device)
+    def pre_forward(self, model, inputs, task_key, shared_memory):
+        super().pre_forward(model, inputs, task_key, shared_memory)
+        noise_std = self.options.get("noise_std", self.config.noise_std)
+        noise_snr = self.options.get("noise_snr", self.config.noise_snr)
+        inputs, shared_memory["applied_std"] = self.apply_noise(
+            inputs,
+            self.device,
+            std=noise_std,
+            snr=noise_snr,
+            rnd_gen=self.rnd_gen if not self.train_mode else None,
+            img_min=self.img_min,
+            img_max=self.img_max,
+            noise_scale=self.noise_scale,
+        )
         return model, inputs

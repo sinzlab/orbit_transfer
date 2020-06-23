@@ -5,398 +5,245 @@ import numpy as np
 import torch
 from torch import nn, optim
 from torch.backends import cudnn as cudnn
+from tqdm import tqdm
 
-
-from bias_transfer.models.utils import freeze_params
+from bias_transfer.models.utils import freeze_params, set_bn_to_eval
 from bias_transfer.trainer.utils import (
     get_subdict,
     StopClosureWrapper,
     SchedulerWrapper,
+    move_data,
 )
-from mlutils.training import LongCycler
 import nnfabrik as nnf
-from bias_transfer.trainer.main_loop_modules import *
 from bias_transfer.configs.trainer import TrainerConfig
-from bias_transfer.trainer import main_loop
 from bias_transfer.trainer.transfer import transfer_model
-from bias_transfer.trainer.main_loop import main_loop
-from bias_transfer.trainer.test import test_neural_model, test_model
-from bias_transfer.utils.io import load_model, load_checkpoint, save_checkpoint
-from mlutils import measures as mlmeasures
-from mlutils.training import MultipleObjectiveTracker
+from bias_transfer.utils.io import load_checkpoint
 from .utils import early_stopping
-from nnvision.utility import measures
-from nnvision.utility.measures import get_correlations, get_poisson_loss
-from .utils import save_best_model, XEntropyLossWrapper, NBLossWrapper
-from bias_transfer.trainer import utils as uts
+
+# from .utils import save_best_state
+from .main_loop_modules import *
+from .utils import MTL_Cycler
+from mlutils.training import LongCycler, ShortCycler
 
 
-def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
-    config = TrainerConfig.from_dict(kwargs)
-    uid = nnf.utility.dj_helpers.make_hash(uid)
-    device = "cuda" if torch.cuda.is_available() and not config.force_cpu else "cpu"
-    best_epoch = 0  # best test eval
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+class Trainer:
+    def __init__(self, dataloaders, model, seed, uid, **kwargs):
+        self.config = TrainerConfig.from_dict(kwargs)
+        self.uid = nnf.utility.dj_helpers.make_hash(uid)
+        self.model, self.device = nnf.utility.nn_helpers.move_to_device(model)
+        nnf.utility.nn_helpers.set_random_seed(seed)
+        self.seed = seed
 
-    # Model
-    print("==> Building model..", flush=True)
-    if torch.cuda.device_count() > 1:
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
-        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-        model = nn.DataParallel(model)
-    model = model.to(device)
-    if device == "cuda":
-        cudnn.benchmark = False
-        cudnn.deterministic = True
-        torch.cuda.manual_seed(seed)
+        self.data_loaders = dataloaders
+        self.task_keys = dataloaders["validation"].keys()
+        self.tracker = self.get_tracker()
+        self.main_loop_modules = [
+            globals().get(k)(trainer=self) for k in self.config.main_loop_modules
+        ]
+        self.optimizer, self.stop_closure, self.criterion = self.get_training_controls()
 
-    if config.mtl and ("neural" not in config.loss_functions.keys()):
-        dataloaders["train"] = get_subdict(dataloaders["train"], ["img_classification"])
-        dataloaders["validation"] = get_subdict(dataloaders["validation"], ["img_classification"])
-        dataloaders["test"] = get_subdict(dataloaders["test"], ["img_classification"])
+        self.lr_scheduler = self.prepare_lr_schedule()
 
-    train_loader = getattr(uts, config.train_cycler)(dataloaders["train"], **config.train_cycler_args)
+        start_epoch, self.best_eval, self.best_epoch = self.try_load_model()
 
-    train_n_iterations = len(train_loader)
-    optim_step_count = (
-        len(dataloaders["train"].keys())
-        if config.loss_accum_batch_n is None
-        else config.loss_accum_batch_n
-    )
+        # Potentially freeze parts of the model
+        freeze_params(self.model, self.config.freeze, self.config.readout_name)
 
-    val_keys = dataloaders["validation"].keys()
-    val_n_iterations = {
-        k: len(LongCycler(dataset)) if "img_classification" not in k else len(dataset)
-        for k, dataset in dataloaders["validation"].items()
-    }
-    test_n_iterations = {
-        k: None if "img_classification" not in k else len(dataset)
-        for k, dataset in dataloaders["test"].items()
-    }
-    best_eval = {k: {"eval": -100000, "loss": 100000} for k in val_keys}
-    # Main-loop modules:
-    main_loop_modules = [
-        globals().get(k)(model, config, device, train_loader, seed)
-        for k in config.main_loop_modules
-    ]
-
-    criterion, stop_closure = {}, {}
-    for k in val_keys:
-        if "img_classification" not in k:
-            if config.loss_weighing:
-                criterion[k] = NBLossWrapper().to(device)
-            else:
-                criterion[k] = getattr(mlmeasures, config.loss_functions[k])(
-                    avg=config.avg_loss
-                )
-            stop_closure[k] = {}
-            stop_closure[k]['eval'] = partial(
-                getattr(measures, "get_correlations"),
-                dataloaders=dataloaders["validation"][k],
-                device=device,
-                per_neuron=False,
-                avg=True,
-            )
-            stop_closure[k]['loss'] = partial(
-                get_poisson_loss,
-                dataloaders=dataloaders["validation"][k],
-                device=device,
-                per_neuron=False,
-                avg=False,
-            )
-        else:
-            if config.loss_weighing:
-                criterion[k] = XEntropyLossWrapper(
-                    getattr(nn, config.loss_functions[k])()
-                ).to(device)
-            else:
-                criterion[k] = getattr(nn, config.loss_functions[k])()
-            stop_closure[k] = partial(
-                main_loop,
-                criterion=get_subdict(criterion, [k]),
-                device=device,
-                data_loader=get_subdict(dataloaders["validation"], [k]),
-                modules=main_loop_modules,
-                train_mode=False,
-                batch_norm_train_mode=False,
-                n_iterations=val_n_iterations[k],
-                return_outputs=False,
-                scale_loss=config.scale_loss,
-                optim_step_count=optim_step_count,
-                eval_type="Validation",
-                epoch=0,
-                optimizer=None,
-                loss_weighing=config.loss_weighing,
-                cycler_args={},
-                cycler="LongCycler",
-            )
-
-    if config.track_training:
-        tracker_dict = dict(
-            correlation=partial(
-                get_correlations(),
-                model,
-                dataloaders["validation"],
-                device=device,
-                per_neuron=False,
-            ),
-            poisson_loss=partial(
-                get_poisson_loss(),
-                model,
-                dataloaders["validation"],
-                device=device,
-                per_neuron=False,
-                avg=False,
-            ),
+        # Prepare iterator for training
+        print("==> Starting model {}".format(self.config.comment), flush=True)
+        self.train_stats = []
+        self.epoch_iterator = early_stopping(
+            self.model,
+            self.stop_closure,
+            self.config,
+            interval=self.config.interval,
+            patience=self.config.patience,
+            start=start_epoch,
+            max_iter=self.config.max_iter,
+            maximize=self.config.maximize,
+            tolerance=self.config.threshold,
+            restore_best=self.config.restore_best,
+            tracker=self.tracker,
+            scheduler=self.lr_scheduler,
+            lr_decay_steps=self.config.lr_decay_steps,
         )
-        if hasattr(model, "tracked_values"):
-            tracker_dict.update(model.tracked_values)
-        tracker = MultipleObjectiveTracker(**tracker_dict)
-    else:
-        tracker = None
 
-    params = list(model.parameters())
-    if config.loss_weighing:
-        for _, loss_object in criterion.items():
-            params += list(loss_object.parameters())
-    optimizer = getattr(optim, config.optimizer)(params, **config.optimizer_options)
-    if config.scheduler is not None:
-        if config.scheduler == "adaptive":
-            if config.scheduler_options['mtl']:
-                lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=config.lr_decay)
-            elif not config.scheduler_options['mtl']:
-                lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                    optimizer,
-                    factor=config.lr_decay,
-                    patience=config.patience,
-                    threshold=config.threshold,
-                    verbose=config.verbose,
-                    min_lr=config.min_lr,
-                    mode="max" if config.maximize else "min",
-                    threshold_mode=config.threshold_mode,
-                )
-        elif config.scheduler == "manual":
-            lr_scheduler = optim.lr_scheduler.MultiStepLR(
-                optimizer, milestones=config.scheduler_options['milestones'], gamma=config.lr_decay
+    def get_tracker(self):
+        raise NotImplementedError
+
+    def try_load_model(self):
+        best_epoch = 0
+        best_eval = {k: {"eval": -100000, "loss": 100000} for k in self.task_keys}
+        start_epoch = self.config.epoch
+        path = "./checkpoint/ckpt.{}.pth".format(self.uid)
+        # ... from checkpoint
+        if os.path.isfile(path):
+            model, best_eval, start_epoch = load_checkpoint(
+                path, self.model, self.optimizer
             )
-    else:
+            best_epoch = start_epoch
+        # ... or from transfer
+        elif self.config.transfer_from_path:
+            self.data_loaders["train"] = transfer_model(
+                self.model,
+                self.config,
+                criterion=self.criterion,
+                device=self.device,
+                data_loader=self.data_loaders["train"],
+            )
+        return start_epoch, best_eval, best_epoch
+
+    def prepare_lr_schedule(self):
         lr_scheduler = None
-
-    if config.lr_warmup:
-        import pytorch_warmup as warmup
-
-        warmup_scheduler = warmup.LinearWarmup(
-            optimizer, warmup_period=config.lr_warmup,
-        )
-        lr_scheduler = SchedulerWrapper(lr_scheduler, warmup_scheduler)
-
-    start_epoch = config.epoch
-    path = "./checkpoint/ckpt.{}.pth".format(uid)
-    if os.path.isfile(path):
-        model, best_eval, start_epoch = load_checkpoint(path, model, optimizer)
-        best_epoch = start_epoch
-    elif config.transfer_from_path:
-        dataloaders["train"] = transfer_model(
-            model,
-            config,
-            criterion=criterion,
-            device=device,
-            data_loader=dataloaders["train"],
-        )
-
-    if config.freeze:
-        if "core" in config.freeze:
-            kwargs = {"not_to_freeze": (config.readout_name,)}
-        elif config.freeze == ("readout",):
-            kwargs = {"to_freeze": (config.readout_name,)}
-        else:
-            kwargs = {"to_freeze": config.freeze}
-        freeze_params(model, **kwargs)
-
-    print("==> Starting model {}".format(config.comment), flush=True)
-    train_stats = []
-    epoch_iterator = early_stopping(
-        model,
-        stop_closure,
-        config,
-        interval=config.interval,
-        patience=config.patience,
-        start=start_epoch,
-        max_iter=config.max_iter,
-        maximize=config.maximize,
-        tolerance=config.threshold,
-        restore_best=config.restore_best,
-        tracker=tracker,
-        scheduler=lr_scheduler,
-        lr_decay_steps=config.lr_decay_steps,
-    )
-
-    # train over epochs
-    train_results, train_module_loss, epoch = 0, 0, 0
-    for epoch, dev_eval in epoch_iterator:
-        if cb:
-            cb()
-
-        if config.verbose and tracker is not None:
-            print("=======================================")
-            for key in tracker.log.keys():
-                print(key, tracker.log[key][-1], flush=True)
-
-        if epoch > 1:
-            best_epoch, best_eval = save_best_model(
-                model, optimizer, dev_eval, epoch, best_eval, best_epoch, uid
-            )
-
-            train_stats.append(
-                {
-                    "train_results": train_results,
-                    "train_module_loss": train_module_loss,
-                    "dev_eval": dev_eval,
-                }
-            )
-
-        train_results, train_module_loss = main_loop(
-            model=model,
-            criterion=criterion,
-            device=device,
-            optimizer=optimizer,
-            data_loader=dataloaders["train"],
-            n_iterations=train_n_iterations,
-            modules=main_loop_modules,
-            train_mode=True,
-            batch_norm_train_mode=(
-                not config.freeze_bn
-            ),  # we want eval mode to freeze BN
-            epoch=epoch,
-            optim_step_count=optim_step_count,
-            cycler=config.train_cycler,
-            cycler_args=config.train_cycler_args,
-            loss_weighing=config.loss_weighing,
-            scale_loss=config.scale_loss,
-            lr_scheduler=lr_scheduler,
-        )
-
-    dev_eval = StopClosureWrapper(stop_closure)(model)
-    if epoch > 0:
-        best_epoch, best_eval = save_best_model(
-            model, optimizer, dev_eval, epoch + 1, best_eval, best_epoch, uid
-        )
-
-    train_stats.append(
-        {
-            "train_results": train_results,
-            "train_module_loss": train_module_loss,
-            "dev_eval": dev_eval,
-        }
-    )
-
-    if not config.lottery_ticket and epoch > 0:
-        model, _, epoch = load_checkpoint("./checkpoint/ckpt.{}.pth".format(uid), model)
-    else:
-        for module in main_loop_modules:
-            module.pre_epoch(
-                model, True, epoch + 1, optimizer=optimizer, lr_scheduler=lr_scheduler
-            )
-
-    # test the final model with noise on the dev-set
-    # test the final model on the test set
-    test_results_dict, dev_final_results_dict = {}, {}
-    for k in val_keys:
-        if "img_classification" not in k:
-            dev_final_results = test_neural_model(
-                model,
-                data_loader=dataloaders["validation"][k],
-                device=device,
-                epoch=epoch,
-                eval_type="Validation",
-            )
-            test_results = test_neural_model(
-                model,
-                data_loader=dataloaders["test"][k],
-                device=device,
-                epoch=epoch,
-                eval_type="Test",
-            )
-            dev_final_results_dict.update(dev_final_results)
-            test_results_dict.update(test_results)
-        else:
-            if "rep_matching" not in k:
-                dev_final_results = test_model(
-                    model=model,
-                    epoch=epoch,
-                    n_iterations=val_n_iterations[k],
-                    criterion=get_subdict(criterion, [k]),
-                    device=device,
-                    data_loader=get_subdict(dataloaders["validation"], [k]),
-                    config=config,
-                    noise_test=True,
-                    seed=seed,
+        if self.config.scheduler is not None:
+            if self.config.scheduler == "adaptive":
+                if self.config.scheduler_options["mtl"]:
+                    pass
+                    # self.lr_scheduler = optim.lr_scheduler.StepLR(
+                    #     self.optimizer, step_size=1, gamma=self.config.lr_decay
+                    # )
+                elif not self.config.scheduler_options["mtl"]:
+                    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                        self.optimizer,
+                        factor=self.config.lr_decay,
+                        patience=self.config.patience,
+                        threshold=self.config.threshold,
+                        verbose=self.config.verbose,
+                        min_lr=self.config.min_lr,
+                        mode="max" if self.config.maximize else "min",
+                        threshold_mode=self.config.threshold_mode,
+                    )
+            elif self.config.scheduler == "manual":
+                lr_scheduler = optim.lr_scheduler.MultiStepLR(
+                    self.optimizer,
+                    milestones=self.config.scheduler_options["milestones"],
+                    gamma=self.config.lr_decay,
                 )
-                dev_final_results_dict.update(dev_final_results)
+        if self.config.lr_warmup:
+            import pytorch_warmup as warmup
 
-            test_results = test_model(
-                model=model,
-                epoch=epoch,
-                n_iterations=test_n_iterations[k],
-                criterion=get_subdict(criterion, [k]),
-                device=device,
-                data_loader=get_subdict(dataloaders["test"], [k]),
-                config=config,
-                noise_test=False,
-                seed=seed,
-                eval_type="Test",
+            warmup_scheduler = warmup.LinearWarmup(
+                self.optimizer, warmup_period=self.config.lr_warmup,
             )
-            test_results_dict.update(test_results)
-            dev_final_results_dict.update(dev_final_results)
+            lr_scheduler = SchedulerWrapper(lr_scheduler, warmup_scheduler)
+        return lr_scheduler
 
-    final_results = {
-        "test_results": test_results_dict,
-        "dev_eval": best_eval,
-        "epoch": best_epoch,
-        "dev_final_results": dev_final_results_dict,
-    }
+    def main_loop(
+        self,
+        data_loader,
+        mode="Training",
+        epoch: int = 0,
+        cycler="LongCycler",
+        cycler_args={},
+        module_options=None,
+    ):
+        if mode == "Training":
+            train_mode = True
+            batch_norm_train_mode = True
+            return_outputs = False
+        else:
+            train_mode = False
+            batch_norm_train_mode = False
+            return_outputs = False
+        module_options = {} if module_options is None else module_options
 
-    if "c_test" in dataloaders:
-        test_c_results = {}
-        for k in val_keys:
-            if "rep_matching" not in k:
-                for c_category in list(dataloaders["c_test"][k].keys()):
-                    test_c_results[c_category] = {}
-                    for c_level, dataloader in dataloaders["c_test"][k][
-                        c_category
-                    ].items():
-                        results = test_model(
-                            model=model,
-                            n_iterations=len(dataloader),
-                            epoch=epoch,
-                            criterion=get_subdict(criterion, [k]),
-                            device=device,
-                            data_loader={k: dataloader},
-                            config=config,
-                            noise_test=False,
-                            seed=seed,
-                            eval_type="Test-C",
-                        )
-                        test_c_results[c_category][c_level] = results
-        final_results["test_c_results"] = test_c_results
+        self.model.train() if train_mode else self.model.eval()
+        self.model.apply(partial(set_bn_to_eval, train_mode=batch_norm_train_mode))
+        collected_outputs = []
+        if hasattr(
+            tqdm, "_instances"
+        ):  # To have tqdm output without line-breaks between steps
+            tqdm._instances.clear()
+        data_cycler = globals().get(cycler)(data_loader, **cycler_args)
 
-    if "st_test" in dataloaders:
-        test_st_results = test_model(
-            model=model,
-            epoch=epoch,
-            n_iterations=len(dataloaders['st_test']),
-            criterion=get_subdict(criterion, ["img_classification"]),
-            device=device,
-            data_loader={"img_classification": dataloaders['st_test']},
-            config=config,
-            noise_test=False,
-            seed=seed,
-            eval_type="Test-ST",
+        with tqdm(
+            iterable=enumerate(data_cycler),
+            total=len(data_cycler),
+            desc="{} Epoch {}".format(mode, epoch),
+        ) as t, torch.enable_grad() if train_mode else torch.no_grad():
+            for module in self.main_loop_modules:
+                module.pre_epoch(self.model, mode, **module_options)
+            if train_mode:
+                self.optimizer.zero_grad()
+            # Iterate over batches
+            for batch_idx, batch_data in t:
+
+                # Pre-Forward
+                loss = torch.zeros(1, device=self.device)
+                inputs, targets, task_key, batch_dict = move_data(
+                    batch_data, self.device
+                )
+                shared_memory = {}  # e.g. to remember where which noise was applied
+                model_ = self.model
+                for module in self.main_loop_modules:
+                    model_, inputs = module.pre_forward(
+                        model_, inputs, task_key, shared_memory
+                    )
+                # Forward
+                outputs = model_(inputs)
+
+                # Post-Forward and Book-keeping
+                if return_outputs:
+                    collected_outputs.append(outputs[0])
+                for module in self.main_loop_modules:
+                    outputs, loss, targets = module.post_forward(
+                        outputs, loss, targets, **shared_memory
+                    )
+
+                loss = self.compute_loss(mode, task_key, loss, outputs, targets)
+
+                self.tracker.display_log(tqdm_iterator=t, keys=(mode,))
+                if train_mode:
+                    # Backward
+                    loss.backward()
+                    for module in self.main_loop_modules:
+                        module.post_backward(self.model)
+                    if (
+                        not self.config.optim_step_count
+                        or (batch_idx + 1) % self.config.optim_step_count == 0
+                    ):
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
+
+        if return_outputs:
+            return (
+                collected_outputs,
+                self.tracker.get_current_main_objective(mode),
+            )
+        else:
+            return self.tracker.get_current_main_objective(mode)
+
+    def train(self, cb):
+        # train over epochs
+        epoch = 0
+        self.tracker.start_epoch()
+        for epoch, dev_eval in self.epoch_iterator:
+            if cb:
+                cb()
+            self.tracker.start_epoch()
+            self.tracker.log_objective(self.optimizer.param_groups[0]["lr"], ("LR",))
+            self.main_loop(
+                data_loader=self.data_loaders["train"], mode="Training", epoch=epoch,
+            )
+
+        if self.config.lottery_ticket or epoch == 0:
+            for module in self.main_loop_modules:
+                module.pre_epoch(self.model, "Training")
+
+        test_result = self.test_final_model(epoch)
+        return (
+            test_result,
+            self.tracker.to_dict(),
+            self.model.state_dict(),
         )
-        final_results["test_st_results"] = test_st_results
-    return (
-        test_results_dict[list(config.loss_functions.keys())[0]]["eval"],
-        (train_stats, final_results),
-        model.state_dict(),
-    )
+
+    def get_training_controls(self):
+        raise NotImplementedError
+
+    def compute_loss(
+        self, mode, data_key, loss, outputs, targets,
+    ):
+        raise NotImplementedError
+
+    def test_final_model(self, epoch):
+        raise NotImplementedError

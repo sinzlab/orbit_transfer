@@ -3,7 +3,19 @@ from torchvision.models.resnet import Bottleneck, BasicBlock
 from bias_transfer.models.resnet import ResNet
 
 
-def freeze_params(model, to_freeze=None, not_to_freeze=None):
+def freeze_params(model, freeze=None, readout_name=""):
+    if not freeze:
+        return
+
+    to_freeze = None
+    not_to_freeze = None
+    if "core" in freeze:
+        not_to_freeze = (readout_name,)
+    elif freeze == ("readout",):
+        to_freeze = (readout_name,)
+    else:
+        to_freeze = freeze
+
     for name, param in model.named_parameters():
         if to_freeze:
             freeze = False
@@ -57,3 +69,12 @@ def get_model_parameters(model):
             layer_parameter *= l
         total_parameters += layer_parameter
     return total_parameters
+
+
+def set_bn_to_eval(m, train_mode=False):
+    classname = m.__class__.__name__
+    if "BatchNorm" in classname:
+        if train_mode:
+            m.train()
+        else:
+            m.eval()

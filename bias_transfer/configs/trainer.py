@@ -5,7 +5,7 @@ from nnfabrik.main import *
 class TrainerConfig(BaseConfig):
     config_name = "trainer"
     table = Trainer()
-    fn = "bias_transfer.trainer.trainer"
+    fn = "bias_transfer.trainer.img_classification"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -119,7 +119,7 @@ class TrainerConfig(BaseConfig):
         if self.representation_matching:
             modules.append("RepresentationMatching")
         elif (
-            self.noise_snr or self.noise_std
+            self.noise_snr or self.noise_std or self.noise_test
         ):  # Logit matching includes noise augmentation
             modules.append("NoiseAugmentation")
         if self.noise_adv_classification or self.noise_adv_regression:

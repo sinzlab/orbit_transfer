@@ -5,7 +5,7 @@ from torch.backends import cudnn as cudnn
 from tqdm import tqdm
 
 from bias_transfer.tests._base import BaseTest
-from bias_transfer.trainer.main_loop import move_data
+from bias_transfer.trainer.utils import move_data
 
 
 class MainLoopModuleTest(BaseTest):
@@ -60,16 +60,13 @@ class MainLoopModuleTest(BaseTest):
                         batch_data, device, False
                     )
                     shared_memory = {}  # e.g. to remember where which noise was applied
-                    model, inputs = module.pre_forward(
-                        model, inputs, shared_memory, True
-                    )
+                    model, inputs = module.pre_forward(model, inputs, shared_memory, True)
                     self.pre_forward_test(model, inputs, shared_memory)
                     # Forward
                     outputs = model(inputs)
                     # Post-Forward
-                    outputs, loss, targets = module.post_forward(
-                        outputs, loss, targets, module_losses, True, **shared_memory
-                    )
+                    outputs, loss, targets = module.post_forward(outputs, loss, targets, module_losses, True,
+                                                                 **shared_memory)
                     self.post_forward_test(
                         outputs, loss, targets, module_losses, **shared_memory
                     )

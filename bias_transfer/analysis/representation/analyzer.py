@@ -8,7 +8,6 @@ import torch
 from torch import nn
 from torch.backends import cudnn
 
-import bias_transfer.trainer.main_loop
 import bias_transfer.trainer.trainer
 from bias_transfer.analysis.utils import plot_preparation, save_plot
 
@@ -25,9 +24,9 @@ class RepresentationAnalyzer:
         self.experiment = experiment
         self.dataset = dataset
         data_loaders, self.model, self.trainer = (
-            table & experiment.get_restrictions()
-        ).load_model(include_trainer=True, include_state_dict=True, seed=42)
-        self.num_samples = -1
+                                                         table & experiment.get_restrictions()
+                                                 ).restore_saved_state(,,
+                                                 self.num_samples = -1
         self.sample_loader = torch.utils.data.DataLoader(
             data_loaders[dataset]["img_classification"].dataset,
             sampler=data_loaders[dataset]["img_classification"].sampler,

@@ -6,8 +6,7 @@ from bias_transfer.configs.trainer import TrainerConfig
 from bias_transfer.dataset.combined_dataset import CombinedDataset, JoinedDataset
 from bias_transfer.models.utils import weight_reset, freeze_params
 from bias_transfer.trainer.main_loop_modules import ModelWrapper
-from bias_transfer.utils.io import load_model
-from bias_transfer.trainer.main_loop import main_loop
+from bias_transfer.utils.io import restore_saved_state
 from mlutils.training import LongCycler
 
 
@@ -20,7 +19,9 @@ def compute_representation(model, criterion, device, data_loader, rep_name):
         data_loader=data_loader,
         epoch=0,
         n_iterations=len(data_loader),
-        modules=[ModelWrapper(None, TrainerConfig(comment=""), None, None, None)],  # The data is already modified to have
+        modules=[
+            ModelWrapper(None, TrainerConfig(comment=""), None, None, None)
+        ],  # The data is already modified to have
         train_mode=False,
         return_outputs=True,
     )
@@ -56,11 +57,18 @@ def generate_rep_dataset(model, criterion, device, data_loader, rep_name):
         pin_memory=data_loader.pin_memory,
         shuffle=False,
     )
-    return {"img_classification":combined_data_loader}
+    return {"img_classification": combined_data_loader}
 
 
 def transfer_model(to_model, config, criterion=None, device=None, data_loader=None):
-    model = load_model(config.transfer_from_path, to_model, ignore_missing=True)
+    model = restore_saved_state(
+        to_model,
+        config.transfer_from_path,
+        ignore_missing=True,
+        ignore_dim_mismatch=True,
+        ignore_unused=True,
+        match_names=True,
+    )
     if config.rdm_transfer:
         data_loader = generate_rep_dataset(
             model, criterion, device, data_loader, "core"

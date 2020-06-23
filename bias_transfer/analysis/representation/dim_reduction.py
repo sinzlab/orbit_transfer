@@ -2,7 +2,6 @@ import copy
 
 import torch
 
-import bias_transfer.trainer.main_loop
 import bias_transfer.trainer.trainer
 from torch import nn
 from bias_transfer.trainer.main_loop_modules.noise_augmentation import NoiseAugmentation

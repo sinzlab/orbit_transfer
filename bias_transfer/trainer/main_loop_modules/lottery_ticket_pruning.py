@@ -18,8 +18,8 @@ class LotteryTicketPruning(MainLoopModule):
     (therefore indirectly from https://github.com/ktkth5/lottery-ticket-hyopothesis)
     """
 
-    def __init__(self, model, config, device, data_loader, seed):
-        super().__init__(model, config, device, data_loader, seed)
+    def __init__(self, trainer):
+        super().__init__(trainer)
         if self.config.lottery_ticket.get("pruning", True):
             n_epochs = self.config.max_iter
             n_rounds = self.config.lottery_ticket.get("rounds", 1)
@@ -35,18 +35,21 @@ class LotteryTicketPruning(MainLoopModule):
             print("Reset before epochs:", list(self.reset_epochs), flush=True)
 
             # create initial (empty mask):
-            self.mask = self.make_empty_mask(model)
+            self.mask = self.make_empty_mask(self.trainer.model)
 
             # save initial state_dict to reset to this point later:
             if not self.config.lottery_ticket.get("reinit"):
-                self.initial_state_dict = copy.deepcopy(model.state_dict())
+                self.initial_state_dict = copy.deepcopy(self.trainer.model.state_dict())
             self.initial_optim_state_dict = None
             self.initial_scheduler_state_dict = None
             self.initial_w_scheduler_state_dict = None
 
     def pre_epoch(
-        self, model, train_mode, epoch, optimizer=None, lr_scheduler=None, **kwargs
+        self, model, mode, **options
     ):
+        super().pre_epoch(model, mode, **options)
+        optimizer = self.trainer.optimizer
+        lr_scheduler = self.trainer.lr_scheduler
         if self.config.lottery_ticket.get("pruning", True):
             if not self.initial_optim_state_dict and optimizer is not None:
                 self.initial_optim_state_dict = copy.deepcopy(optimizer.state_dict())
@@ -61,10 +64,10 @@ class LotteryTicketPruning(MainLoopModule):
                     self.initial_w_scheduler_state_dict = copy.deepcopy(
                         lr_scheduler.warmup_scheduler.state_dict()
                     )
-            if epoch in self.reset_epochs and train_mode:
+            if epoch in self.reset_epochs and self.train_mode:
                 # Prune the network, i.e. update the mask
                 self.prune_by_percentile(model, self.percent_per_round)
-                print("Reset init in Epoch ", epoch, flush=True)
+                print("Reset init in Epoch ", self.epoch, flush=True)
                 self.reset_initialization(
                     model, self.config.lottery_ticket.get("reinit")
                 )
@@ -85,7 +88,7 @@ class LotteryTicketPruning(MainLoopModule):
                 lr_scheduler._step_count = 0
                 lr_scheduler.last_epoch = 0
 
-    def post_backward(self, model, **kwargs):
+    def post_backward(self, model):
         # Freezing Pruned weights by making their gradients Zero
         for name, p in model.named_parameters():
             if "weight" in name and self.config.readout_name not in name:
