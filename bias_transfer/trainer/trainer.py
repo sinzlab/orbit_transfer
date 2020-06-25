@@ -12,7 +12,6 @@ from bias_transfer.trainer.utils import (
     get_subdict,
     StopClosureWrapper,
     SchedulerWrapper,
-    move_data,
 )
 import nnfabrik as nnf
 from bias_transfer.configs.trainer import TrainerConfig
@@ -170,9 +169,7 @@ class Trainer:
 
                 # Pre-Forward
                 loss = torch.zeros(1, device=self.device)
-                inputs, targets, task_key, batch_dict = move_data(
-                    batch_data, self.device
-                )
+                inputs, targets, task_key, batch_dict = self.move_data(batch_data)
                 shared_memory = {}  # e.g. to remember where which noise was applied
                 model_ = self.model
                 for module in self.main_loop_modules:
@@ -191,7 +188,6 @@ class Trainer:
                     )
 
                 loss = self.compute_loss(mode, task_key, loss, outputs, targets)
-
                 self.tracker.display_log(tqdm_iterator=t, keys=(mode,))
                 if train_mode:
                     # Backward
@@ -205,13 +201,16 @@ class Trainer:
                         self.optimizer.step()
                         self.optimizer.zero_grad()
 
-        if return_outputs:
-            return (
-                collected_outputs,
-                self.tracker.get_current_main_objective(mode),
+        if len(data_loader) == 1:
+            objective = self.tracker.get_current_objective(
+                mode, next(iter(data_loader.keys())), "accuracy"
             )
         else:
-            return self.tracker.get_current_main_objective(mode)
+            objective = self.tracker.get_current_main_objective(mode)
+        if return_outputs:
+            return (collected_outputs, objective)
+        else:
+            return objective
 
     def train(self, cb):
         # train over epochs
@@ -236,6 +235,9 @@ class Trainer:
             self.tracker.to_dict(),
             self.model.state_dict(),
         )
+
+    def move_data(self, batch_data):
+        raise NotImplementedError
 
     def get_training_controls(self):
         raise NotImplementedError

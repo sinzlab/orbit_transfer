@@ -245,24 +245,3 @@ class NBLossWrapper(nn.Module):
         )
         return loss.mean()
 
-
-def move_data(batch_data, device):
-    batch_dict = None
-    data_key, inputs = batch_data[0], batch_data[1][0]
-
-    if len(batch_data[1]) > 2:
-        targets = [b.to(device) for b in batch_data[1][1:]]
-    else:
-        targets = batch_data[1][1].to(device)
-
-    if "img_classification" not in data_key:
-        inputs, targets = (
-            inputs.to(device),
-            targets.to(device),
-        )
-        batch_dict = {data_key: [(inputs, targets)]}
-        return inputs, targets, data_key, batch_dict
-    inputs = inputs.to(device, dtype=torch.float)
-    return inputs, targets, data_key, batch_dict
-
-

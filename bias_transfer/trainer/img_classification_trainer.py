@@ -1,5 +1,6 @@
 from functools import partial
 
+import torch
 from torch import nn
 
 from bias_transfer.trainer.trainer import Trainer
@@ -61,23 +62,34 @@ class ImgClassificationTrainer(Trainer):
         )
         return optimizer, stop_closure, criterion
 
+
+    def move_data(self, batch_data):
+        batch_dict = None
+        data_key, inputs = batch_data[0], batch_data[1][0]
+
+        if len(batch_data[1]) > 2:
+            targets = [b.to(self.device) for b in batch_data[1][1:]]
+        else:
+            targets = batch_data[1][1].to(self.device)
+        inputs = inputs.to(self.device, dtype=torch.float)
+        return inputs, targets, data_key, batch_dict
+
     def compute_loss(
         self, mode, task_key, loss, outputs, targets,
     ):
-        if task_key in self.criterion:
-            loss += self.criterion[task_key](outputs, targets)
-            _, predicted = outputs.max(1)
-            batch_size = targets.size(0)
-            self.tracker.log_objective(
-                batch_size, keys=(mode, task_key, "normalization"),
-            )
-            self.tracker.log_objective(
-                100 * predicted.eq(targets).sum().item(),
-                keys=(mode, task_key, "accuracy"),
-            )
-            self.tracker.log_objective(
-                loss.item() * batch_size, keys=(mode, task_key, "loss"),
-            )
+        loss += self.criterion["img_classification"](outputs, targets)
+        _, predicted = outputs.max(1)
+        batch_size = targets.size(0)
+        self.tracker.log_objective(
+            batch_size, keys=(mode, task_key, "normalization"),
+        )
+        self.tracker.log_objective(
+            100 * predicted.eq(targets).sum().item(),
+            keys=(mode, task_key, "accuracy"),
+        )
+        self.tracker.log_objective(
+            loss.item() * batch_size, keys=(mode, task_key, "loss"),
+        )
         return loss
 
     def test_final_model(self, epoch):
@@ -124,7 +136,7 @@ class ImgClassificationTrainer(Trainer):
 
                             objectives = {
                                 c_category: {
-                                    c_level: {
+                                    str(c_level): {
                                         "accuracy": 0,
                                         "loss": 0,
                                         "normalization": 0,
@@ -132,9 +144,9 @@ class ImgClassificationTrainer(Trainer):
                                 }
                             }
                             self.tracker.add_objectives(objectives, init_epoch=True)
-                            results, _ = self.main_loop(
+                            self.main_loop(
                                 epoch=epoch,
-                                data_loader={c_level: data_loader},
+                                data_loader={str(c_level): data_loader},
                                 mode=c_category,
                                 cycler_args={},
                                 cycler="LongCycler",
