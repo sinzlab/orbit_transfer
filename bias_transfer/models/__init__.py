@@ -7,6 +7,8 @@ from bias_transfer.models.wrappers.noise_adv import NoiseAdvWrapper
 from bias_transfer.models.utils import get_model_parameters
 from bias_transfer.models.vgg import vgg_builder
 from torch.hub import load_state_dict_from_url
+
+from nnfabrik.utility.nn_helpers import load_state_dict
 from nnvision.models.models import se_core_gauss_readout, se_core_point_readout
 from .wrappers import *
 
@@ -69,8 +71,12 @@ def classification_cnn_builder(data_loader, seed: int, **config):
 
     if config.pretrained:
         print("Downloading pretrained model:", flush=True)
-        state_dict = load_state_dict_from_url(model_urls[config.type], progress=True)
-        model.load_state_dict(state_dict)
+        url = model_urls[config.type] if not config.pretrained_url else config.pretrained_url
+        state_dict = load_state_dict_from_url(url, progress=True)
+        try:
+            load_state_dict(model, state_dict)
+        except:
+            load_state_dict(model, state_dict["model_state_dict"])
 
     # Add wrappers
     if config.get_intermediate_rep:

@@ -1,8 +1,5 @@
-from nnfabrik.main import *
-from nnfabrik.template import *
 from .trained_model import *
 from .collapse import Collapsed
-import numpy as np
 
 
 @schema

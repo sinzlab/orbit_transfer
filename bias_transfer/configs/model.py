@@ -73,6 +73,7 @@ class ClassificationModelConfig(ModelConfig):
 
         # vgg specific
         self.pretrained = kwargs.pop("pretrained", False)
+        self.pretrained_path = kwargs.pop("pretrained_url", "")
         self.readout_type = kwargs.pop("readout_type", "dense")
         self.input_channels = kwargs.pop("input_channels", 3)
 
