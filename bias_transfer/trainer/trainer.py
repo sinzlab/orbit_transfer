@@ -1,4 +1,5 @@
 import os
+from copy import copy
 from functools import partial
 
 import numpy as np
@@ -17,12 +18,13 @@ import nnfabrik as nnf
 from bias_transfer.configs.trainer import TrainerConfig
 from bias_transfer.trainer.transfer import transfer_model
 from bias_transfer.utils.io import load_checkpoint
+from nnfabrik.utility.nn_helpers import load_state_dict
 from .utils import early_stopping
 
 # from .utils import save_best_state
 from .main_loop_modules import *
 from .utils import MTL_Cycler
-from mlutils.training import LongCycler, ShortCycler
+from mlutils.training import LongCycler, ShortCycler, copy_state
 
 
 class Trainer:
@@ -136,16 +138,22 @@ class Trainer:
         cycler_args={},
         module_options=None,
     ):
+        reset_state_dict = {}
         if mode == "Training":
             train_mode = True
+            batch_norm_train_mode = self.config.bn_freeze
+            return_outputs = False
+        elif "BN" in mode:
+            train_mode = False
             batch_norm_train_mode = True
             return_outputs = False
+            reset_state_dict = copy_state(self.model)
         else:
             train_mode = False
             batch_norm_train_mode = False
             return_outputs = False
-        module_options = {} if module_options is None else module_options
 
+        module_options = {} if module_options is None else module_options
         self.model.train() if train_mode else self.model.eval()
         self.model.apply(partial(set_bn_to_eval, train_mode=batch_norm_train_mode))
         collected_outputs = []
@@ -200,6 +208,14 @@ class Trainer:
                     ):
                         self.optimizer.step()
                         self.optimizer.zero_grad()
+
+        if reset_state_dict:
+            load_state_dict(
+                self.model,
+                reset_state_dict,
+                ignore_missing=True,
+                ignore_dim_mismatch=True,  # intermediate output is included here and may change in dim
+            )
 
         if len(data_loader) == 1:
             objective = self.tracker.get_current_objective(

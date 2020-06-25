@@ -10,7 +10,6 @@ class TrainerConfig(BaseConfig):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.force_cpu = kwargs.pop("force_cpu", False)
-        self.use_tensorboard = kwargs.pop("use_tensorboard", False)
         self.optimizer = kwargs.pop("optimizer", "Adam")
         self.optimizer_options = kwargs.pop(
             "optimizer_options", {"amsgrad": False, "lr": 0.0003, "weight_decay": 5e-4}
@@ -46,9 +45,7 @@ class TrainerConfig(BaseConfig):
             "loss_accum_batch_n", None
         )  # for gradient accumulation how often to call opt.step
 
-        self.mtl = kwargs.pop(
-            "mtl", False
-        )
+        self.mtl = kwargs.pop("mtl", False)
 
         self.interval = kwargs.pop(
             "interval", 1
@@ -64,7 +61,7 @@ class TrainerConfig(BaseConfig):
             "lr_decay_steps", 3
         )  # Number of times the learning rate should be reduced before stopping the training.
 
-        self.track_training = kwargs.pop("track_training", False)
+        self.eval_with_bn_train = kwargs.pop("eval_with_bn_train", False)
         # noise
         self.add_noise = kwargs.pop("add_noise", False)
         self.noise_std = kwargs.pop("noise_std", None)
@@ -100,6 +97,7 @@ class TrainerConfig(BaseConfig):
         self.representation_matching = kwargs.pop("representation_matching", None)
         # transfer
         self.freeze = kwargs.pop("freeze", None)
+        self.freeze_bn = kwargs.pop("freeze_bn", False)
         self.readout_name = kwargs.pop("readout_name", "fc")
         self.reset_linear = kwargs.pop("reset_linear", False)
         self.reset_linear_frequency = kwargs.pop("reset_linear_frequency", None)

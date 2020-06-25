@@ -30,9 +30,6 @@ class ImgClassificationTrainer(Trainer):
             "Validation": {
                 "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0}
             },
-            "Test": {
-                "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0}
-            },
         }
         tracker = AdvancedMultipleObjectiveTracker(
             main_objective=("img_classification", "accuracy"), **objectives
@@ -62,7 +59,6 @@ class ImgClassificationTrainer(Trainer):
         )
         return optimizer, stop_closure, criterion
 
-
     def move_data(self, batch_data):
         batch_dict = None
         data_key, inputs = batch_data[0], batch_data[1][0]
@@ -84,15 +80,16 @@ class ImgClassificationTrainer(Trainer):
             batch_size, keys=(mode, task_key, "normalization"),
         )
         self.tracker.log_objective(
-            100 * predicted.eq(targets).sum().item(),
-            keys=(mode, task_key, "accuracy"),
+            100 * predicted.eq(targets).sum().item(), keys=(mode, task_key, "accuracy"),
         )
         self.tracker.log_objective(
             loss.item() * batch_size, keys=(mode, task_key, "loss"),
         )
         return loss
 
-    def test_final_model(self, epoch):
+    def test_final_model(self, epoch, bn_train=""):
+        if not bn_train and self.config.eval_with_bn_train:
+            self.test_final_model(epoch, bn_train=" BN=Train")
         # test the final model with noise on the dev-set
         # test the final model on the test set
         for k in self.task_keys:
@@ -100,12 +97,16 @@ class ImgClassificationTrainer(Trainer):
                 for n_type, n_vals in self.config.noise_test.items():
                     for val in n_vals:
                         val_str = stringify(val)
-                        mode = "Noise {} {}".format(n_type, val_str)
+                        mode = "Noise {} {}".format(n_type, val_str) + bn_train
                         objectives = {
                             mode: {k: {"accuracy": 0, "loss": 0, "normalization": 0,}}
                         }
                         self.tracker.add_objectives(objectives, init_epoch=True)
-                        module_options = {"noise_snr": None, "noise_std": None, "rep_matching":False}
+                        module_options = {
+                            "noise_snr": None,
+                            "noise_std": None,
+                            "rep_matching": False,
+                        }
                         module_options[n_type] = val
                         self.main_loop(
                             epoch=epoch,
@@ -118,13 +119,17 @@ class ImgClassificationTrainer(Trainer):
                             module_options=module_options,
                         )
 
+            objectives = {
+                "Test" + bn_train: {k: {"accuracy": 0, "loss": 0, "normalization": 0,}}
+            }
+            self.tracker.add_objectives(objectives, init_epoch=True)
             test_result = self.main_loop(
                 epoch=epoch,
                 data_loader=get_subdict(self.data_loaders["test"], [k]),
-                mode="Test",
+                mode="Test" + bn_train,
                 cycler_args={},
                 cycler="LongCycler",
-                module_options={"noise_snr": None, "noise_std": None},
+                module_options={"noise_snr": None, "noise_std": None, "rep_matching":False},
             )
         if "c_test" in self.data_loaders:
             for k in self.task_keys:
@@ -135,7 +140,8 @@ class ImgClassificationTrainer(Trainer):
                         ].items():
 
                             objectives = {
-                                c_category: {
+                                c_category
+                                + bn_train: {
                                     str(c_level): {
                                         "accuracy": 0,
                                         "loss": 0,
@@ -147,18 +153,26 @@ class ImgClassificationTrainer(Trainer):
                             self.main_loop(
                                 epoch=epoch,
                                 data_loader={str(c_level): data_loader},
-                                mode=c_category,
+                                mode=c_category + bn_train,
                                 cycler_args={},
                                 cycler="LongCycler",
-                                module_options={"noise_snr": None, "noise_std": None, "rep_matching":False},
+                                module_options={
+                                    "noise_snr": None,
+                                    "noise_std": None,
+                                    "rep_matching": False,
+                                },
                             )
         if "st_test" in self.data_loaders:
             self.main_loop(
                 epoch=epoch,
                 data_loader={"img_classification": self.data_loaders["st_test"]},
-                mode="Test-ST",
+                mode="Test-ST" + bn_train,
                 cycler_args={},
                 cycler="LongCycler",
-                module_options={"noise_snr": None, "noise_std": None, "rep_matching": False},
+                module_options={
+                    "noise_snr": None,
+                    "noise_std": None,
+                    "rep_matching": False,
+                },
             )
         return test_result
