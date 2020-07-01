@@ -60,7 +60,7 @@ def generate_rep_dataset(model, criterion, device, data_loader, rep_name):
     return {"img_classification": combined_data_loader}
 
 
-def transfer_model(to_model, config, criterion=None, device=None, data_loader=None):
+def transfer_model(to_model, config, criterion=None, device=None, data_loader=None, restriction=None):
     model = restore_saved_state(
         to_model,
         config.transfer_from_path,
@@ -68,6 +68,7 @@ def transfer_model(to_model, config, criterion=None, device=None, data_loader=No
         ignore_dim_mismatch=True,
         ignore_unused=True,
         match_names=True,
+        restriction=restriction
     )
     if config.rdm_transfer:
         data_loader = generate_rep_dataset(

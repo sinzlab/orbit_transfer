@@ -10,6 +10,7 @@ def restore_saved_state(
     ignore_unused=False,
     ignore_dim_mismatch=False,
     match_names=False,
+    restriction=None,
 ):
     print("==> Loading model..", flush=True)
     if isinstance(saved_state, (str, os.path)):
@@ -17,6 +18,8 @@ def restore_saved_state(
         state_dict = torch.load(saved_state)
     else:
         state_dict = saved_state
+    if restriction:
+        state_dict = {k: state_dict[k] for k in restriction if k in state_dict}
     load_state_dict(
         model=model,
         state_dict=state_dict,

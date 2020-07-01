@@ -91,6 +91,7 @@ class Trainer:
                 criterion=self.criterion,
                 device=self.device,
                 data_loader=self.data_loaders["train"],
+                restriction=self.config.transfer_restriction,
             )
         return start_epoch, best_eval, best_epoch
 

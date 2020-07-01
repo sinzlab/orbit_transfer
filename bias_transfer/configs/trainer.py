@@ -98,6 +98,7 @@ class TrainerConfig(BaseConfig):
         # transfer
         self.freeze = kwargs.pop("freeze", None)
         self.freeze_bn = kwargs.pop("freeze_bn", False)
+        self.transfer_restriction = kwargs.pop("transfer_restriction", [])
         self.readout_name = kwargs.pop("readout_name", "fc")
         self.reset_linear = kwargs.pop("reset_linear", False)
         self.reset_linear_frequency = kwargs.pop("reset_linear_frequency", None)
@@ -130,3 +131,4 @@ class TrainerConfig(BaseConfig):
             modules.append("LotteryTicketPruning")
         modules.append("ModelWrapper")
         return modules
+
