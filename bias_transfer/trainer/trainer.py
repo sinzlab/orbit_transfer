@@ -141,7 +141,7 @@ class Trainer:
         reset_state_dict = {}
         if mode == "Training":
             train_mode = True
-            batch_norm_train_mode = self.config.bn_freeze
+            batch_norm_train_mode = not self.config.freeze_bn
             return_outputs = False
         elif "BN" in mode:
             train_mode = False
@@ -152,7 +152,6 @@ class Trainer:
             train_mode = False
             batch_norm_train_mode = False
             return_outputs = False
-
         module_options = {} if module_options is None else module_options
         self.model.train() if train_mode else self.model.eval()
         self.model.apply(partial(set_bn_to_eval, train_mode=batch_norm_train_mode))
