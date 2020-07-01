@@ -84,7 +84,7 @@ class Trainer:
             )
             best_epoch = start_epoch
         # ... or from transfer
-        elif self.config.transfer_from_path:
+        elif self.config.transfer_from_path and not self.config.transfer_after_train:
             self.data_loaders["train"] = transfer_model(
                 self.model,
                 self.config,
@@ -244,6 +244,15 @@ class Trainer:
         if self.config.lottery_ticket or epoch == 0:
             for module in self.main_loop_modules:
                 module.pre_epoch(self.model, "Training")
+        if self.config.transfer_after_train and self.config.transfer_from_path:
+            transfer_model(
+                self.model,
+                self.config,
+                criterion=self.criterion,
+                device=self.device,
+                data_loader=self.data_loaders["train"],
+                restriction=self.config.transfer_restriction,
+            )
 
         test_result = self.test_final_model(epoch)
         return (
