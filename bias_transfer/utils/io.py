@@ -13,7 +13,7 @@ def restore_saved_state(
     restriction=None,
 ):
     print("==> Loading model..", flush=True)
-    if isinstance(saved_state, (str, os.path)):
+    if isinstance(saved_state, str):
         assert os.path.isfile(saved_state), "Error: no model file found!"
         state_dict = torch.load(saved_state)
     else:
