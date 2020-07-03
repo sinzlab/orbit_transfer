@@ -106,7 +106,7 @@ class Analyzer:
                 ("Noise noise_std 0.5_1.0" + bn_train, 'img_classification', 'accuracy'),
                 ("Noise noise_std 1.0_1.0" + bn_train, 'img_classification', 'accuracy'),
             )
-        self.plot(to_plot, plot_method="bar", rename=lambda n: n[16:19], **kwargs)
+        self.plot(to_plot, plot_method="bar", rename=lambda n: n[16:20], **kwargs)
 
 
     def plot(
