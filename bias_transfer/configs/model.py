@@ -32,11 +32,19 @@ class ClassificationModelConfig(ModelConfig):
         self.zero_init_residual = kwargs.pop("zero_init_residual", False)
         self.adaptive_pooling = kwargs.pop("adaptive_pooling", False)
         self.avg_pool = kwargs.pop("avg_pool", False)
+        self.input_channels = kwargs.pop("input_channels", 3)
         dataset_cls = kwargs.pop("dataset_cls", "CIFAR100")
         if dataset_cls == "CIFAR100":
             self.num_classes = kwargs.pop("num_classes", 100)
         elif dataset_cls == "CIFAR10":
             self.num_classes = kwargs.pop("num_classes", 10)
+        elif dataset_cls == "MNIST":
+            self.num_classes = kwargs.pop("num_classes", 10)
+            self.input_size = 28
+            self.input_channels = 1
+        elif dataset_cls == "SVHN":
+            self.num_classes = kwargs.pop("num_classes", 10)
+            self.input_size = 32
         elif dataset_cls == "TinyImageNet":
             self.num_classes = kwargs.pop("num_classes", 200)
             self.input_size = 64
@@ -75,7 +83,6 @@ class ClassificationModelConfig(ModelConfig):
         self.pretrained = kwargs.pop("pretrained", False)
         self.pretrained_path = kwargs.pop("pretrained_url", "")
         self.readout_type = kwargs.pop("readout_type", "dense")
-        self.input_channels = kwargs.pop("input_channels", 3)
 
         self.update(**kwargs)
 

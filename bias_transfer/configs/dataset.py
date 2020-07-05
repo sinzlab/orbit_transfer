@@ -29,29 +29,36 @@ class ImageDatasetConfig(DatasetConfig):
         self.apply_noise = kwargs.pop("apply_noise", {})
         self.input_size = kwargs.pop("input_size", 32)
         self.pin_memory = kwargs.pop("pin_memory", True)
-        if self.dataset_cls == "CIFAR100":
-            self.train_data_mean = (
-                0.5070751592371323,
-                0.48654887331495095,
-                0.4409178433670343,
-            )
-            self.train_data_std = (
-                0.2673342858792401,
-                0.2564384629170883,
-                0.27615047132568404,
-            )
+        if (
+            "CIFAR" in self.dataset_cls
+            or "SVHN" in self.dataset_cls
+            or "MNIST" in self.dataset_cls
+        ):
+            if self.dataset_cls == "CIFAR100":
+                self.train_data_mean = (
+                    0.5070751592371323,
+                    0.48654887331495095,
+                    0.4409178433670343,
+                )
+                self.train_data_std = (
+                    0.2673342858792401,
+                    0.2564384629170883,
+                    0.27615047132568404,
+                )
+            elif "CIFAR10" in self.dataset_cls:  # also covers semi-supervised version
+                self.train_data_mean = (0.49139968, 0.48215841, 0.44653091)
+                self.train_data_std = (0.24703223, 0.24348513, 0.26158784)
+            elif self.dataset_cls == "SVHN":
+                self.train_data_mean = (0.4377, 0.4438, 0.4728)
+                self.train_data_std = (0.1980, 0.2010, 0.1970)
+            elif self.dataset_cls == "MNIST":
+                self.train_data_mean = (0.1307,)
+                self.train_data_std = (0.3081,)
+                self.input_size = 28
             self.data_dir = kwargs.pop(
                 "data_dir", "./data/image_classification/torchvision/"
             )
             self.num_workers = 1
-            self.valid_size = kwargs.pop("valid_size", 0.1)
-        elif "CIFAR10" in self.dataset_cls:  # also covers semi-supervised version
-            self.train_data_mean = (0.49139968, 0.48215841, 0.44653091)
-            self.train_data_std = (0.24703223, 0.24348513, 0.26158784)
-            self.data_dir = kwargs.pop(
-                "data_dir", "./data/image_classification/torchvision/"
-            )
-            self.num_workers = kwargs.pop("num_workers", 1)
             self.valid_size = kwargs.pop("valid_size", 0.1)
         elif self.dataset_cls == "TinyImageNet":
             if self.apply_grayscale:
@@ -78,7 +85,9 @@ class ImageDatasetConfig(DatasetConfig):
             self.data_dir = kwargs.pop("data_dir", "./data/image_classification/")
             self.input_size = 224
             self.num_workers = kwargs.pop("num_workers", 8)
-            self.valid_size = kwargs.pop("valid_size", 0.0416)  # To get ~50K (test set size)
+            self.valid_size = kwargs.pop(
+                "valid_size", 0.0416
+            )  # To get ~50K (test set size)
         else:
             raise NameError()
         self.add_corrupted_test = kwargs.pop("add_corrupted_test", True)

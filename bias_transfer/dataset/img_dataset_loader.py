@@ -67,9 +67,13 @@ def img_dataset_loader(seed, **config):
     error_msg = "[!] valid_size should be in the range [0, 1]."
     assert (config.valid_size >= 0) and (config.valid_size <= 1), error_msg
 
-    train_dataset, valid_dataset, test_dataset, c_test_datasets, st_test_dataset = get_datasets(
-        config, transform_test, transform_train, transform_val
-    )
+    (
+        train_dataset,
+        valid_dataset,
+        test_dataset,
+        c_test_datasets,
+        st_test_dataset,
+    ) = get_datasets(config, transform_test, transform_train, transform_val)
 
     filters = [globals().get(f)(config, train_dataset) for f in config.filters]
     datasets_ = [train_dataset, valid_dataset, test_dataset]
@@ -81,7 +85,13 @@ def img_dataset_loader(seed, **config):
             filt.apply(ds)
 
     data_loaders = get_data_loaders(
-        st_test_dataset, c_test_datasets, config, seed, test_dataset, train_dataset, valid_dataset
+        st_test_dataset,
+        c_test_datasets,
+        config,
+        seed,
+        test_dataset,
+        train_dataset,
+        valid_dataset,
     )
 
     return data_loaders
@@ -127,7 +137,9 @@ def get_transforms(config):
             if config.apply_augmentation
             else None,
             transforms.RandomHorizontalFlip() if config.apply_augmentation else None,
-            transforms.RandomRotation(15) if config.apply_augmentation else None,
+            transforms.RandomRotation(15)
+            if config.apply_augmentation and not config.dataset_cls == "MNIST"
+            else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
             transforms.Normalize(config.train_data_mean, config.train_data_std)
@@ -169,24 +181,27 @@ def get_datasets(config, transform_test, transform_train, transform_val):
         and config.dataset_cls != "ImageNet"
     ):
         dataset_cls = eval("torchvision.datasets." + config.dataset_cls)
-        train_dataset = dataset_cls(
-            root=config.data_dir,
-            train=True,
-            download=config.download,
-            transform=transform_train,
-        )
-        valid_dataset = dataset_cls(
-            root=config.data_dir,
-            train=True,
-            download=config.download,
-            transform=transform_val,
-        )
-        test_dataset = dataset_cls(
-            root=config.data_dir,
-            train=False,
-            download=config.download,
-            transform=transform_test,
-        )
+        kwargs = {
+            "root": config.data_dir,
+            "download": config.download,
+            "transform": transform_train,
+        }
+
+        if config.dataset_cls == "SVHN":
+            kwargs["split"] = "train"
+        else:
+            kwargs["train"] = True
+        train_dataset = dataset_cls(**kwargs)
+
+        kwargs["transform"] = transform_val
+        valid_dataset = dataset_cls(**kwargs)
+
+        kwargs["transform"] = transform_test
+        if config.dataset_cls == "SVHN":
+            kwargs["split"] = "test"
+        else:
+            kwargs["train"] = False
+        test_dataset = dataset_cls(**kwargs)
     else:
         dataset_dir = get_dataset(
             DATASET_URLS[config.dataset_cls],
@@ -227,7 +242,6 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             download=config.dowload,
         )
         st_test_dataset = datasets.ImageFolder(st_dataset_dir, transform=transform_test)
-
 
     c_test_datasets = None
     if config.add_corrupted_test:
@@ -274,7 +288,13 @@ def get_datasets(config, transform_test, transform_train, transform_val):
 
 
 def get_data_loaders(
-    st_test_dataset, c_test_datasets, config, seed, test_dataset, train_dataset, valid_dataset
+    st_test_dataset,
+    c_test_datasets,
+    config,
+    seed,
+    test_dataset,
+    train_dataset,
+    valid_dataset,
 ):
     num_train = len(train_dataset)
     indices = list(range(num_train))
@@ -285,10 +305,10 @@ def get_data_loaders(
         start_idx = 0
         for c_category in c_test_datasets.keys():
             if c_category not in (
-                    "speckle_noise",
-                    "gaussian_blur",
-                    "spatter",
-                    "saturate",
+                "speckle_noise",
+                "gaussian_blur",
+                "spatter",
+                "saturate",
             ):
                 continue
             for dataset in c_test_datasets[c_category].values():

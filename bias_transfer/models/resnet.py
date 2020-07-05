@@ -15,6 +15,7 @@ class ResNet(DefaultResNet):
         width_per_group=64,
         replace_stride_with_dilation=None,
         norm_layer=None,
+        input_channels=3,
         core_stride=1,
         conv_stem_kernel_size=3,
         conv_stem_padding=1,
@@ -42,7 +43,7 @@ class ResNet(DefaultResNet):
         self.groups = groups
         self.base_width = width_per_group
         self.conv1 = nn.Conv2d(
-            3,
+            input_channels,
             self.inplanes,
             kernel_size=conv_stem_kernel_size,
             stride=conv_stem_stride,
@@ -143,6 +144,7 @@ def resnet_builder(seed: int, config):
         block,
         num_blocks,
         num_classes=config.num_classes,
+        input_channels=config.input_channels,
         core_stride=config.core_stride,
         conv_stem_kernel_size=config.conv_stem_kernel_size,
         conv_stem_stride=config.conv_stem_stride,
