@@ -235,11 +235,11 @@ class Trainer:
         for epoch, dev_eval in self.epoch_iterator:
             if cb:
                 cb()
-            self.tracker.start_epoch()
             self.tracker.log_objective(self.optimizer.param_groups[0]["lr"], ("LR",))
             self.main_loop(
                 data_loader=self.data_loaders["train"], mode="Training", epoch=epoch,
             )
+            self.tracker.start_epoch()
 
         if self.config.lottery_ticket or epoch == 0:
             for module in self.main_loop_modules:

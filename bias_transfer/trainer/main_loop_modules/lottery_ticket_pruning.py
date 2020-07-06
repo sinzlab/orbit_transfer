@@ -28,7 +28,7 @@ class LotteryTicketPruning(MainLoopModule):
                 1 - (1 - percent_to_prune / 100) ** (1 / n_rounds)
             ) * 100
             self.reset_epochs = [
-                r * self.config.lottery_ticket.get("round_length", 100) + 1
+                r * self.config.lottery_ticket.get("round_length", 100)
                 for r in range(1, n_rounds + 1)
             ]
             print("Percent to prune per round:", self.percent_per_round, flush=True)
@@ -64,7 +64,7 @@ class LotteryTicketPruning(MainLoopModule):
                     self.initial_w_scheduler_state_dict = copy.deepcopy(
                         lr_scheduler.warmup_scheduler.state_dict()
                     )
-            if epoch in self.reset_epochs and self.train_mode:
+            if self.tracker.epoch in self.reset_epochs and self.train_mode:
                 # Prune the network, i.e. update the mask
                 self.prune_by_percentile(model, self.percent_per_round)
                 print("Reset init in Epoch ", self.epoch, flush=True)
