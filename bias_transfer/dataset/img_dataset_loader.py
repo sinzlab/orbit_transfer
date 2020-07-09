@@ -328,6 +328,9 @@ def get_data_loaders(
             np.random.seed(seed)
             np.random.shuffle(indices)
         train_idx, valid_idx = indices[split:], indices[:split]
+        if config.train_subset:
+            subset_split = int(np.floor(config.train_subset * len(train_idx)))
+            train_idx = train_idx[:subset_split]
         train_sampler = SubsetRandomSampler(train_idx)
         valid_sampler = SubsetRandomSampler(valid_idx)
     train_loader = torch.utils.data.DataLoader(
