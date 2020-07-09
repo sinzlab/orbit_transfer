@@ -106,6 +106,7 @@ class ImgClassificationTrainer(Trainer):
                             "noise_snr": None,
                             "noise_std": None,
                             "rep_matching": False,
+                            "noise_adv": False,
                         }
                         module_options[n_type] = val
                         self.main_loop(
@@ -129,7 +130,12 @@ class ImgClassificationTrainer(Trainer):
                 mode="Test" + bn_train,
                 cycler_args={},
                 cycler="LongCycler",
-                module_options={"noise_snr": None, "noise_std": None, "rep_matching":False},
+                module_options={
+                    "noise_snr": None,
+                    "noise_std": None,
+                    "rep_matching": False,
+                    "noise_adv": False,
+                },
             )
         if "c_test" in self.data_loaders:
             for k in self.task_keys:
@@ -160,6 +166,7 @@ class ImgClassificationTrainer(Trainer):
                                     "noise_snr": None,
                                     "noise_std": None,
                                     "rep_matching": False,
+                                    "noise_adv": False,
                                 },
                             )
         if "st_test" in self.data_loaders:
@@ -173,6 +180,7 @@ class ImgClassificationTrainer(Trainer):
                     "noise_snr": None,
                     "noise_std": None,
                     "rep_matching": False,
+                    "noise_adv": False,
                 },
             )
         return test_result

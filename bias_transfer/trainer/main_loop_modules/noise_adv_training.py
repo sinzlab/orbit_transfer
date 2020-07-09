@@ -20,6 +20,12 @@ class NoiseAdvTraining(MainLoopModule):
             self.criterion = nn.MSELoss()
         else:  # config.noise_adv_classification
             self.criterion = nn.BCELoss()
+        objectives = {
+            "Training": {"NoiseAdvTraining": {"loss": 0, "normalization": 0}},
+            "Validation": {"NoiseAdvTraining": {"loss": 0, "normalization": 0}},
+            "Test": {"NoiseAdvTraining": {"loss": 0, "normalization": 0}},
+        }
+        self.tracker.add_objectives(objectives)
 
     def pre_forward(self, model, inputs, task_key, shared_memory):
         super().pre_forward(model, inputs, task_key, shared_memory)
@@ -31,7 +37,10 @@ class NoiseAdvTraining(MainLoopModule):
         return partial(model, noise_lambda=noise_adv_lambda), inputs
 
     def post_forward(self, outputs, loss, targets, **shared_memory):
-        applied_std = kwargs["applied_std"]
+        if not self.options.get("noise_adv",True):
+            return outputs, loss, targets
+        applied_std = shared_memory["applied_std"]
+        num_inputs = (applied_std != 0).sum().item()
         extra_outputs = outputs[0]
         if applied_std is None:
             applied_std = torch.zeros_like(
@@ -43,7 +52,10 @@ class NoiseAdvTraining(MainLoopModule):
             )
         noise_loss = self.criterion(extra_outputs["noise_pred"], applied_std)
         self.tracker.log_objective(
-            noise_loss.item(), (self.mode, self.task_key, "NoiseAdvTraining")
+            noise_loss.item() * num_inputs, (self.mode, "NoiseAdvTraining", "loss")
+        )
+        self.tracker.log_objective(
+            num_inputs, (self.mode, "NoiseAdvTraining", "normalization"),
         )
         loss += self.config.noise_adv_loss_factor * noise_loss
         return outputs, loss, targets
