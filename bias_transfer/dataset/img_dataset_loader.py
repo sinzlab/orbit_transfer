@@ -7,12 +7,13 @@ from torch.utils.data.dataset import ChainDataset, ConcatDataset
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets
 from bias_transfer.configs.dataset import ImageDatasetConfig
-from bias_transfer.dataset.dataset_classes.pkl_dataset import PklDataset
-from bias_transfer.dataset.utils import (
+from .MNIST_IB import generate_and_save
+from .dataset_classes.pkl_dataset import PklDataset
+from .dataset_classes.npy_dataset import NpyDataset
+from .utils import (
     get_dataset,
     create_ImageFolder_format,
 )
-from bias_transfer.dataset.dataset_classes.npy_dataset import NpyDataset
 
 DATASET_URLS = {
     "TinyImageNet": "http://cs231n.stanford.edu/tiny-imagenet-200.zip",
@@ -132,16 +133,18 @@ def get_transforms(config):
         transform_train = [
             transforms.ToPILImage()
             if config.dataset_cls == "CIFAR10-Semisupervised"
+            or config.dataset_cls == "MNIST-IB"
             else None,
             transforms.RandomCrop(config.input_size, padding=4)
             if config.apply_augmentation
             else None,
             transforms.RandomHorizontalFlip() if config.apply_augmentation else None,
             transforms.RandomRotation(15)
-            if config.apply_augmentation and not config.dataset_cls == "MNIST"
+            if config.apply_augmentation and not "MNIST" in config.dataset_cls
             else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if config.convert_to_rgb else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
@@ -149,16 +152,20 @@ def get_transforms(config):
         transform_val = [
             transforms.ToPILImage()
             if config.dataset_cls == "CIFAR10-Semisupervised"
+            or config.dataset_cls == "MNIST-IB"
             else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if config.convert_to_rgb else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
         ]
         transform_test = [
+            transforms.ToPILImage() if config.dataset_cls == "MNIST-IB" else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if config.convert_to_rgb else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
@@ -202,6 +209,27 @@ def get_datasets(config, transform_test, transform_train, transform_val):
         else:
             kwargs["train"] = False
         test_dataset = dataset_cls(**kwargs)
+    elif config.dataset_cls == "MNIST-IB":
+        dataset_dir = os.path.join(config.data_dir, config.dataset_cls)
+        generate_and_save(config.bias, base_path=config.data_dir)
+        train_dataset = NpyDataset(
+            f"{config.bias}_train_source.npy",
+            f"{config.bias}_train_target.npy",
+            root=dataset_dir,
+            transform=transform_train,
+        )
+        valid_dataset = NpyDataset(
+            f"{config.bias}_train_source.npy",
+            f"{config.bias}_train_target.npy",
+            root=dataset_dir,
+            transform=transform_val,
+        )
+        test_dataset = NpyDataset(
+            f"{config.bias}_test_source.npy",
+            f"{config.bias}_test_target.npy",
+            root=dataset_dir,
+            transform=transform_test,
+        )
     else:
         dataset_dir = get_dataset(
             DATASET_URLS[config.dataset_cls],
