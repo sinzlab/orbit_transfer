@@ -15,7 +15,6 @@ def freeze_params(model, freeze=None, readout_name=""):
         to_freeze = (readout_name,)
     else:
         to_freeze = freeze
-
     for name, param in model.named_parameters():
         if to_freeze:
             freeze = False
@@ -74,7 +73,4 @@ def get_model_parameters(model):
 def set_bn_to_eval(m, train_mode=False):
     classname = m.__class__.__name__
     if "BatchNorm" in classname:
-        if train_mode:
-            m.train()
-        else:
-            m.eval()
+        m.train(train_mode)

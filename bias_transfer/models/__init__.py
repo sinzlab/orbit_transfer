@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from bias_transfer.configs.model import ClassificationModelConfig, MTLModelConfig
+from bias_transfer.configs.model import ClassificationModelConfig, MTLModelConfig, RegressionModelConfig
 from bias_transfer.models.resnet import resnet_builder
 from bias_transfer.models.wrappers.noise_adv import NoiseAdvWrapper
 from bias_transfer.models.utils import get_model_parameters
@@ -10,6 +10,8 @@ from torch.hub import load_state_dict_from_url
 
 from nnfabrik.utility.nn_helpers import load_state_dict
 from nnvision.models.models import se_core_gauss_readout, se_core_point_readout
+from .lenet import lenet_builder
+from .mlp import MLP
 from .wrappers import *
 
 
@@ -66,12 +68,18 @@ def classification_cnn_builder(data_loader, seed: int, **config):
     elif "resnet" in config.type:
         model = resnet_builder(seed, config)
         from torchvision.models.resnet import model_urls
+    elif "lenet" in config.type:
+        model = lenet_builder(seed, config)
     else:
         raise Exception("Unknown type {}".format(config.type))
 
     if config.pretrained:
         print("Downloading pretrained model:", flush=True)
-        url = model_urls[config.type] if not config.pretrained_url else config.pretrained_url
+        url = (
+            model_urls[config.type]
+            if not config.pretrained_url
+            else config.pretrained_url
+        )
         state_dict = load_state_dict_from_url(url, progress=True)
         try:
             load_state_dict(model, state_dict)
@@ -95,5 +103,29 @@ def classification_cnn_builder(data_loader, seed: int, **config):
             num_noise_readout_layers=config.num_noise_readout_layers,
             sigmoid_output=config.noise_sigmoid_output,
         )
+    print("Model with {} parameters.".format(get_model_parameters(model)))
+    return model
+
+
+def regression_mlp_builder(data_loader, seed: int, **config):
+    config = RegressionModelConfig.from_dict(config)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    model = MLP(
+        input_size=config.input_size,
+        num_layers=config.num_layers,
+        layer_size=config.layer_size,
+        output_size=config.output_size,
+        activation=config.activation,
+        dropout=config.dropout,
+    )
+
+    # Add wrappers
+    if config.get_intermediate_rep:
+        model = IntermediateLayerGetter(
+            model, return_layers=config.get_intermediate_rep, keep_output=True
+        )
+
     print("Model with {} parameters.".format(get_model_parameters(model)))
     return model
