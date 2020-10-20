@@ -1,26 +1,24 @@
 from functools import partial
 
 import torch
-from torch import nn
 
+from bias_transfer.trainer.utils.checkpointing import RemoteCheckpointing
 from bias_transfer.trainer.trainer import Trainer
-from bias_transfer.trainer.utils import NBLossWrapper, get_subdict
+from bias_transfer.trainer.utils import get_subdict
 from bias_transfer.utils import stringify
-from mlutils import measures as mlmeasures
 from mlutils.tracking import AdvancedMultipleObjectiveTracker
-from mlutils.training import LongCycler
-from nnvision.utility import measures
-from nnvision.utility.measures import get_poisson_loss
 
 from torch import nn, optim
 
 
 def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
-    t = ImgClassificationTrainer(dataloaders, model, seed, uid, **kwargs)
-    return t.train(cb)
+    t = ImgClassificationTrainer(dataloaders, model, seed, uid, cb, **kwargs)
+    return t.train()
 
 
 class ImgClassificationTrainer(Trainer):
+    checkpointing_cls = RemoteCheckpointing
+
     def get_tracker(self):
         objectives = {
             "LR": 0,
@@ -28,7 +26,8 @@ class ImgClassificationTrainer(Trainer):
                 "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0}
             },
             "Validation": {
-                "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0}
+                "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0},
+                "patience": 0,
             },
         }
         tracker = AdvancedMultipleObjectiveTracker(

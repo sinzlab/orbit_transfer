@@ -1,4 +1,5 @@
 import math
+import re
 from functools import partial
 
 import torch
@@ -106,7 +107,13 @@ class Analyzer:
                 ("Noise noise_std 0.5_1.0" + bn_train, 'img_classification', 'accuracy'),
                 ("Noise noise_std 1.0_1.0" + bn_train, 'img_classification', 'accuracy'),
             )
-        self.plot(to_plot, plot_method="bar", rename=lambda n: n[16:20], **kwargs)
+        def rename(name):
+            number_idx = re.search(r"\d", name)
+            name = name[number_idx.start():]
+            underscore_idx = name.find("_")
+            name = name[:underscore_idx]
+            return float(name)
+        self.plot(to_plot, plot_method="bar", rename=rename, **kwargs)
 
 
     def plot(
@@ -144,7 +151,7 @@ class Analyzer:
             del df["name"]
             df = df.stack().reset_index()
             df.columns = ["Training", "Level", to_plot[0][-1]]
-            sns.barplot(x="Level", data=df, y=to_plot[0][-1], hue="Training", ax=ax)
+            sns.lineplot(x="Level", data=df, y=to_plot[0][-1], hue="Training", ax=ax)
         elif plot_method == "grid":
             data_to_plot = self.extract_c_test_results()
             g = sns.FacetGrid(

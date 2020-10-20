@@ -1,10 +1,10 @@
 from nnfabrik.main import *
-from nnfabrik.template import *
+from nnfabrik.templates.trained_model_chkpts import TrainedModelChkptBase
 from .collapse import Collapsed
 
 
 @schema
-class TrainedModel(TrainedModelBase):
+class TrainedModel(TrainedModelChkptBase):
     table_comment = "My Trained models"
 
 

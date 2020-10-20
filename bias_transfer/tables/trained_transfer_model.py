@@ -3,7 +3,7 @@ from .collapse import Collapsed
 
 
 @schema
-class TrainedTransferModel(TrainedModelBase):
+class TrainedTransferModel(TrainedModelChkptBase):
     transfer_steps = 1
 
     @property

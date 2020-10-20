@@ -303,8 +303,8 @@ class Analyzer:
 
     def calculate_c_scores(self):
         c_data = self.extract_c_test_results()
-        df_ = c_data[c_data.columns[0:5]].apply(lambda x: 100 - x)
-        c_data = pd.concat([c_data, df_[df_.columns[0:5]].mean(axis=1)], axis=1)
+        df_ = c_data[c_data.columns[0:5]].apply(lambda x: 100 - x)  # Get error rate from accuracy
+        c_data = pd.concat([c_data, df_[df_.columns[0:5]].mean(axis=1)], axis=1)  # mean over levels
 
         def normalize_alexnet(row):
             mean_error = row[0]
@@ -312,8 +312,8 @@ class Analyzer:
             ce = mean_error / Res_Alex_Net_mean[corruption_map[corruption]]
             return pd.concat([row, pd.Series({"mCE": ce})])
 
-        c_data = c_data.apply(normalize_alexnet, axis=1)
-        c_data = c_data.groupby("name").mean()
+        c_data = c_data.apply(normalize_alexnet, axis=1)   # normalize for each corruption
+        c_data = c_data.groupby("name").mean()  # mean over normalized corruptions
         return c_data
 
 

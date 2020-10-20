@@ -1,36 +1,32 @@
-import os
-from copy import copy
 from functools import partial
 
-import numpy as np
-import torch
-from torch import nn, optim
-from torch.backends import cudnn as cudnn
+from torch.utils.data.dataset import TensorDataset
 from tqdm import tqdm
-
-from bias_transfer.models.utils import freeze_params, set_bn_to_eval
-from bias_transfer.trainer.utils import (
-    get_subdict,
-    StopClosureWrapper,
-    SchedulerWrapper,
-)
+import torch
+from torch import optim, nn
 import nnfabrik as nnf
-from bias_transfer.configs.trainer import TrainerConfig
-from bias_transfer.trainer.transfer import transfer_model
-from bias_transfer.utils.io import load_checkpoint
-from nnfabrik.utility.nn_helpers import load_state_dict
-from .utils import early_stopping
+from bias_transfer.dataset.combined_dataset import CombinedDataset, JoinedDataset
+from bias_transfer.utils.io import restore_saved_state
+from mlutils.training import copy_state
 
-# from .utils import save_best_state
-from .main_loop_modules import *
-from .utils import MTL_Cycler
-from mlutils.training import LongCycler, ShortCycler, copy_state
+from bias_transfer.models.utils import freeze_params, set_bn_to_eval, weight_reset
+from bias_transfer.trainer.utils import SchedulerWrapper
+from bias_transfer.configs.trainer import TrainerConfig
+from nnfabrik.utility.nn_helpers import load_state_dict
+from bias_transfer.trainer.utils.checkpointing import LocalCheckpointing
+from bias_transfer.trainer.main_loop_modules import *
+from bias_transfer.trainer.utils import LongCycler, MTL_Cycler
+from bias_transfer.trainer.utils.early_stopping import early_stopping
 
 
 class Trainer:
-    def __init__(self, dataloaders, model, seed, uid, **kwargs):
+    checkpointing_cls = (
+        LocalCheckpointing  # Open to chose between local and remote checkpointing
+    )
+
+    def __init__(self, dataloaders, model, seed, uid, cb, **kwargs):
         self.config = TrainerConfig.from_dict(kwargs)
-        self.uid = nnf.utility.dj_helpers.make_hash(uid)
+        self.uid = uid
         self.model, self.device = nnf.utility.nn_helpers.move_to_device(model)
         nnf.utility.nn_helpers.set_random_seed(seed)
         self.seed = seed
@@ -42,24 +38,32 @@ class Trainer:
             globals().get(k)(trainer=self) for k in self.config.main_loop_modules
         ]
         self.optimizer, self.stop_closure, self.criterion = self.get_training_controls()
-
         self.lr_scheduler = self.prepare_lr_schedule()
 
-        start_epoch, self.best_eval, self.best_epoch = self.try_load_model()
-
+        # Potentially prepare for transfer learning (e.g. copying parameters)
+        self.transfer_model()
         # Potentially freeze parts of the model
         freeze_params(self.model, self.config.freeze, self.config.readout_name)
 
         # Prepare iterator for training
         print("==> Starting model {}".format(self.config.comment), flush=True)
         self.train_stats = []
+        checkpointing = self.checkpointing_cls(
+            self.model,
+            self.lr_scheduler,
+            self.tracker,
+            self.config.chkpt_options,
+            self.config.maximize,
+            partial(cb, uid=uid),
+        )
         self.epoch_iterator = early_stopping(
             self.model,
             self.stop_closure,
             self.config,
+            self.optimizer,
+            checkpointing=checkpointing,
             interval=self.config.interval,
             patience=self.config.patience,
-            start=start_epoch,
             max_iter=self.config.max_iter,
             maximize=self.config.maximize,
             tolerance=self.config.threshold,
@@ -69,31 +73,70 @@ class Trainer:
             lr_decay_steps=self.config.lr_decay_steps,
         )
 
-    def get_tracker(self):
-        raise NotImplementedError
+    def generate_rep_dataset(self, data_loader, rep_name):
+        key, data_loader = next(iter(data_loader.items()))
+        data_loader_ = torch.utils.data.DataLoader(
+            data_loader.dataset,
+            batch_size=data_loader.batch_size,
+            sampler=None,  # make sure the dataset is in the right order and complete
+            num_workers=data_loader.num_workers,
+            pin_memory=data_loader.pin_memory,
+            shuffle=False,
+        )
+        _, collected_outputs = self.main_loop(
+            data_loader={key: data_loader_},
+            epoch=0,
+            mode="Validation",
+            return_outputs=True,
+        )
+        outputs = [o[rep_name] for o in collected_outputs]
+        rep_dataset = TensorDataset(torch.cat(outputs).to("cpu"))
+        orig_dataset = data_loader.dataset
+        combined_dataset = CombinedDataset(
+            JoinedDataset(
+                sample_datasets=[orig_dataset],
+                target_datasets=[orig_dataset, rep_dataset],
+            )
+        )
+        combined_data_loader = torch.utils.data.DataLoader(
+            dataset=combined_dataset,
+            batch_size=data_loader.batch_size,
+            sampler=data_loader.sampler,
+            num_workers=data_loader.num_workers,
+            pin_memory=data_loader.pin_memory,
+            shuffle=False,
+        )
+        return {key: combined_data_loader}
 
-    def try_load_model(self):
-        best_epoch = 0
-        best_eval = {k: {"eval": -100000, "loss": 100000} for k in self.task_keys}
-        start_epoch = self.config.epoch
-        path = "./checkpoint/ckpt.{}.pth".format(self.uid)
-        # ... from checkpoint
-        if os.path.isfile(path):
-            model, best_eval, start_epoch = load_checkpoint(
-                path, self.model, self.optimizer
-            )
-            best_epoch = start_epoch
-        # ... or from transfer
-        elif self.config.transfer_from_path and not self.config.transfer_after_train:
-            self.data_loaders["train"] = transfer_model(
+    def transfer_model(self):
+        if self.config.transfer_from_path and not self.config.transfer_after_train:
+            restore_saved_state(
                 self.model,
-                self.config,
-                criterion=self.criterion,
-                device=self.device,
-                data_loader=self.data_loaders["train"],
-                restriction=self.config.transfer_restriction,
+                self.config.transfer_from_path,
+                ignore_missing=True,
+                ignore_dim_mismatch=True,
+                ignore_unused=True,
+                match_names=True,
+                restriction=self.config.transer_restriction,
             )
-        return start_epoch, best_eval, best_epoch
+            if self.config.rdm_transfer:
+                self.data_loaders["train"] = self.generate_rep_dataset(
+                    self.data_loaders["train"], "core",
+                )
+                self.data_loaders["transfer"] = self.generate_rep_dataset(
+                    self.data_loaders["transfer"], "core",
+                )
+                self.model.apply(
+                    weight_reset
+                )  # model was only used to generated representations now we clear it again
+            elif self.config.reset_linear:
+                print("Readout is being reset")
+                if isinstance(self.model, nn.DataParallel):
+                    self.model = self.model.module
+                if isinstance(self.config.readout_name, str):
+                    getattr(self.model, self.config.readout_name).apply(weight_reset)
+                else:
+                    self.model[self.config.readout_name].apply(weight_reset)
 
     def prepare_lr_schedule(self):
         lr_scheduler = None
@@ -138,35 +181,30 @@ class Trainer:
         cycler="LongCycler",
         cycler_args={},
         module_options=None,
+        return_outputs=False,
     ):
         reset_state_dict = {}
         if mode == "Training":
             train_mode = True
             batch_norm_train_mode = not self.config.freeze_bn
-            return_outputs = False
         elif "BN" in mode:
             train_mode = False
             batch_norm_train_mode = True
-            return_outputs = False
             reset_state_dict = copy_state(self.model)
         else:
             train_mode = False
             batch_norm_train_mode = False
-            return_outputs = False
         module_options = {} if module_options is None else module_options
         self.model.train() if train_mode else self.model.eval()
         self.model.apply(partial(set_bn_to_eval, train_mode=batch_norm_train_mode))
         collected_outputs = []
-        if hasattr(
-            tqdm, "_instances"
-        ):  # To have tqdm output without line-breaks between steps
-            tqdm._instances.clear()
         data_cycler = globals().get(cycler)(data_loader, **cycler_args)
 
         with tqdm(
             iterable=enumerate(data_cycler),
             total=len(data_cycler),
             desc="{} Epoch {}".format(mode, epoch),
+            disable=self.config.show_epoch_progress,
         ) as t, torch.enable_grad() if train_mode else torch.no_grad():
             for module in self.main_loop_modules:
                 module.pre_epoch(self.model, mode, **module_options)
@@ -217,24 +255,30 @@ class Trainer:
                 ignore_dim_mismatch=True,  # intermediate output is included here and may change in dim
             )
 
-        if len(data_loader) == 1:
-            objective = self.tracker.get_current_objective(
-                mode, next(iter(data_loader.keys())), "accuracy"
-            )
-        else:
-            objective = self.tracker.get_current_main_objective(mode)
+        # if len(data_loader) == 1:
+        #     objective = self.tracker.get_current_objective(
+        #         mode, next(iter(data_loader.keys())), "accuracy"
+        #     )
+        # else:
+        objective = self.tracker.get_current_main_objective(mode)
         if return_outputs:
-            return (collected_outputs, objective)
+            return (objective, collected_outputs)
         else:
             return objective
 
-    def train(self, cb):
+    def train(self):
         # train over epochs
         epoch = 0
         self.tracker.start_epoch()
-        for epoch, dev_eval in self.epoch_iterator:
-            if cb:
-                cb()
+        if hasattr(
+            tqdm, "_instances"
+        ):  # To have tqdm output without line-breaks between steps
+            tqdm._instances.clear()
+        for epoch, dev_eval in tqdm(
+            iterable=self.epoch_iterator,
+            total=self.config.max_iter,
+            disable=(not self.config.show_epoch_progress),
+        ):
             self.tracker.log_objective(self.optimizer.param_groups[0]["lr"], ("LR",))
             self.main_loop(
                 data_loader=self.data_loaders["train"], mode="Training", epoch=epoch,
@@ -245,21 +289,17 @@ class Trainer:
             for module in self.main_loop_modules:
                 module.pre_epoch(self.model, "Training")
         if self.config.transfer_after_train and self.config.transfer_from_path:
-            transfer_model(
-                self.model,
-                self.config,
-                criterion=self.criterion,
-                device=self.device,
-                data_loader=self.data_loaders["train"],
-                restriction=self.config.transfer_restriction,
-            )
+            self.transfer_model()
 
         test_result = self.test_final_model(epoch)
         return (
             test_result,
-            self.tracker.to_dict(),
+            self.tracker.state_dict(),
             self.model.state_dict(),
         )
+
+    def get_tracker(self):
+        raise NotImplementedError
 
     def move_data(self, batch_data):
         raise NotImplementedError
