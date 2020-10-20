@@ -33,10 +33,3 @@ def plot_kernel(kernel, x):
     #     _ = plt.xticks(np.arange(0,x.shape[0], 15),x[::15,0].astype(np.int))
     #     _ = plt.yticks(np.arange(0,x.shape[0], 15),x[::15,0].astype(np.int))
     plt.colorbar()
-
-def plot_nn(pred, X, save=""):
-    plt.plot(X, pred, label='Prediction')
-    plt.legend()
-    if save:
-        fig = plt.gcf()
-        fig.savefig(save, dpi=200)
