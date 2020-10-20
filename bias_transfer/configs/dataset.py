@@ -1,6 +1,6 @@
 from typing import Dict
 
-from .base import BaseConfig
+from .base import BaseConfig, baseline
 from nnfabrik.main import *
 
 
@@ -9,6 +9,7 @@ class DatasetConfig(BaseConfig):
     table = None
     fn = None
 
+    @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.batch_size = kwargs.pop("batch_size", 128)
@@ -20,6 +21,7 @@ class ImageDatasetConfig(DatasetConfig):
     table = Dataset()
     fn = "bias_transfer.dataset.img_dataset_loader"
 
+    @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.dataset_cls = kwargs.pop("dataset_cls", "CIFAR10")
@@ -27,6 +29,7 @@ class ImageDatasetConfig(DatasetConfig):
         self.apply_normalization = kwargs.pop("apply_data_normalization", True)
         self.apply_grayscale = kwargs.pop("apply_grayscale", False)
         self.apply_noise = kwargs.pop("apply_noise", {})
+        self.convert_to_rgb = kwargs.pop("convert_to_rgb", False)
         self.input_size = kwargs.pop("input_size", 32)
         self.pin_memory = kwargs.pop("pin_memory", True)
         if (
@@ -55,6 +58,24 @@ class ImageDatasetConfig(DatasetConfig):
                 self.train_data_mean = (0.1307,)
                 self.train_data_std = (0.3081,)
                 self.input_size = 28
+            elif self.dataset_cls == "MNIST-IB":
+                self.bias = kwargs.pop("bias", "translation")
+                self.input_size = 40 if self.bias != "addition" else 80
+                if self.bias == "expansion":
+                    self.train_data_mean = (0.06402363,)
+                    self.train_data_std = (0.22534915,)
+                if self.bias == "color":
+                    self.train_data_mean = (0.03685451, 0.0367535, 0.03952756)
+                    self.train_data_std = (0.17386045, 0.16883257, 0.1768625)
+                elif self.bias == "translation":
+                    self.train_data_mean = (0.06402363,)
+                    self.train_data_std = (0.22534915,)
+                elif self.bias == "noise":
+                    self.train_data_mean = (0.13405791,)
+                    self.train_data_std = (0.23784825,)
+                elif self.bias == "addition":
+                    self.train_data_mean = (0.06402363,)
+                    self.train_data_std = (0.22534915,)
             self.data_dir = kwargs.pop(
                 "data_dir", "./data/image_classification/torchvision/"
             )
@@ -100,8 +121,6 @@ class ImageDatasetConfig(DatasetConfig):
             "download", False
         )  # For safety (e.g. to not download ImageNet by accident)
 
-        self.update(**kwargs)
-
     @property
     def filters(self):
         filters = []
@@ -115,6 +134,7 @@ class NeuralDatasetConfig(DatasetConfig):
     table = Dataset()
     fn = "bias_transfer.dataset.neural_dataset_loader"
 
+    @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.train_frac = kwargs.pop("train_frac", 0.8)
@@ -124,7 +144,6 @@ class NeuralDatasetConfig(DatasetConfig):
         self.subsample = kwargs.pop("subsample", 1)
         self.crop = kwargs.pop("crop", 70)
         self.time_bins_sum = kwargs.pop("time_bins_sum", 12)
-        self.update(**kwargs)
 
 
 class MTLDatasetsConfig(DatasetConfig):
@@ -132,7 +151,9 @@ class MTLDatasetsConfig(DatasetConfig):
     table = Dataset()
     fn = "bias_transfer.dataset.mtl_datasets_loader"
 
-    def __init__(self, sub_configs):
+    @baseline
+    def __init__(self, sub_configs, **kwargs):
+        super().__init__(**kwargs)
         self.sub_configs = sub_configs
 
         # super().__init__(**kwargs)
@@ -187,3 +208,22 @@ class MTLDatasetsConfig(DatasetConfig):
         for name, conf in self.sub_configs.items():
             output[name] = {conf.__class__.__name__: conf.to_dict()}
         return output
+
+
+class RegressionDatasetConfig(DatasetConfig):
+    config_name = "dataset"
+    table = Dataset()
+    fn = "bias_transfer.dataset.regression_dataset_loader"
+
+    @baseline
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.dataset_cls = kwargs.pop("dataset_cls", "co2")
+        self.apply_normalization = kwargs.pop("apply_data_normalization", False)
+        self.apply_noise = kwargs.pop("apply_noise", False)
+        self.input_size = kwargs.pop("input_size", 32)
+        self.pin_memory = kwargs.pop("pin_memory", True)
+        self.num_workers = kwargs.pop("num_workers", 0)
+        self.shuffle = kwargs.pop("shuffle", True)
+        self.valid_size = kwargs.pop("valid_size", 0.1)
+        self.train_range = kwargs.pop("train_range", 10)

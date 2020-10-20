@@ -2,6 +2,7 @@ import os
 import json
 import copy
 import logging
+from functools import wraps
 from typing import Dict
 from collections import namedtuple
 
@@ -11,6 +12,15 @@ logger = logging.getLogger(__name__)
 
 Description = namedtuple("Description", "name seed")
 
+
+def baseline(init):
+    @wraps(init)
+    def new_init(self, baseline=None, *args, **kwargs):
+        if baseline is not None:
+            baseline_conf = baseline.to_dict()
+            kwargs.update({k: v for k, v in baseline_conf.items() if k not in kwargs.keys()})
+        init(self, *args, **kwargs)
+    return new_init
 
 class BaseConfig(object):
     r""" Base class for all configuration classes.
@@ -23,8 +33,9 @@ class BaseConfig(object):
     table = None
     fn = None
 
+    @baseline
     def __init__(self, **kwargs):
-        self.comment = kwargs.pop("comment")
+        self.comment = kwargs.pop("comment", "")
 
     def __getattribute__(self, name):
         try:

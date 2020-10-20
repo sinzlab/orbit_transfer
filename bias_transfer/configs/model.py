@@ -1,6 +1,6 @@
 from functools import partial
 
-from .base import BaseConfig
+from .base import BaseConfig, baseline
 from nnfabrik.main import *
 
 
@@ -9,6 +9,7 @@ class ModelConfig(BaseConfig):
     table = None
     fn = None
 
+    @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.update(**kwargs)
@@ -19,6 +20,7 @@ class ClassificationModelConfig(ModelConfig):
     table = Model()
     fn = "bias_transfer.models.classification_cnn_builder"
 
+    @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.type = kwargs.pop("type", "resnet50")
@@ -27,12 +29,12 @@ class ClassificationModelConfig(ModelConfig):
         self.conv_stem_padding = kwargs.pop("conv_stem_padding", 1)
         self.conv_stem_stride = kwargs.pop("conv_stem_stride", 1)
         self.core_stride = kwargs.pop("core_stride", 1)
+        self.dropout = kwargs.pop("dropout", 0.0)
         self.max_pool_after_stem = kwargs.pop("max_pool_after_stem", False)
         self.advanced_init = kwargs.pop("advanced_init", False)
         self.zero_init_residual = kwargs.pop("zero_init_residual", False)
         self.adaptive_pooling = kwargs.pop("adaptive_pooling", False)
         self.avg_pool = kwargs.pop("avg_pool", False)
-        self.input_channels = kwargs.pop("input_channels", 3)
         dataset_cls = kwargs.pop("dataset_cls", "CIFAR100")
         if dataset_cls == "CIFAR100":
             self.num_classes = kwargs.pop("num_classes", 100)
@@ -42,6 +44,11 @@ class ClassificationModelConfig(ModelConfig):
             self.num_classes = kwargs.pop("num_classes", 10)
             self.input_size = 28
             self.input_channels = 1
+        elif dataset_cls == "MNIST-IB":
+            self.num_classes = kwargs.pop("num_classes", 10)
+            self.bias = kwargs.pop("bias", "")
+            self.input_size = 80 if self.bias == "addition" else 40
+            self.input_channels = 3 if self.bias == "color" else 1
         elif dataset_cls == "SVHN":
             self.num_classes = kwargs.pop("num_classes", 10)
             self.input_size = 32
@@ -63,12 +70,15 @@ class ClassificationModelConfig(ModelConfig):
             self.avg_pool = True
         else:
             raise NameError()
+        self.input_channels = kwargs.pop("input_channels", self.input_channels)
 
         # resnet specific
         self.noise_adv_classification = kwargs.pop("noise_adv_classification", False)
         self.noise_adv_regression = kwargs.pop("noise_adv_regression", False)
         self.num_noise_readout_layers = kwargs.pop("num_noise_readout_layers", 1)
-        self.noise_sigmoid_output = kwargs.pop("noise_sigmoid_output", self.noise_adv_classification)
+        self.noise_sigmoid_output = kwargs.pop(
+            "noise_sigmoid_output", self.noise_adv_classification
+        )
         self.get_intermediate_rep = kwargs.pop("get_intermediate_rep", {})
         if (
             self.noise_adv_classification
@@ -84,7 +94,6 @@ class ClassificationModelConfig(ModelConfig):
         self.pretrained_path = kwargs.pop("pretrained_url", "")
         self.readout_type = kwargs.pop("readout_type", "dense")
 
-        self.update(**kwargs)
 
 
 class NeuralModelConfig(ModelConfig):
@@ -92,6 +101,7 @@ class NeuralModelConfig(ModelConfig):
     table = Model()
     fn = "bias_transfer.models.neural_cnn_builder"
 
+    @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.readout_type = kwargs.pop("readout_type", "point")
@@ -105,7 +115,6 @@ class NeuralModelConfig(ModelConfig):
         self.n_se_blocks = kwargs.pop("n_se_blocks", 2)
         self.gamma_readout = kwargs.pop("gamma_readout", 0.5)
         self.gamma_input = kwargs.pop("gamma_input", 10)
-        self.update(**kwargs)
 
 
 class MTLModelConfig(ModelConfig):
@@ -113,6 +122,7 @@ class MTLModelConfig(ModelConfig):
     table = Model()
     fn = "bias_transfer.models.mtl_builder"
 
+    @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.vgg_type = kwargs.pop("vgg_type", "vgg19_bn")
@@ -137,4 +147,24 @@ class MTLModelConfig(ModelConfig):
         self.classification_input_channels = kwargs.pop(
             "classification_input_channels", 1
         )
-        self.update(**kwargs)
+
+
+class RegressionModelConfig(ModelConfig):
+    config_name = "model"
+    table = Model()
+    fn = "bias_transfer.models.regression_mlp_builder"
+
+    @baseline
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.type = kwargs.pop("type", "fc")
+        self.input_size = kwargs.pop("input_size", 1)
+        self.output_size = kwargs.pop("output_size", 1)
+        self.layer_size = kwargs.pop("layer_size", 100)
+        self.num_layers = kwargs.pop("num_layers", 4)
+        self.activation = kwargs.pop("activation", "sigmoid")
+        self.dropout = kwargs.pop("dropout", 0.0)
+        self.get_intermediate_rep = kwargs.pop("get_intermediate_rep", {})
+        self.rdm_prediction = kwargs.pop("rdm_prediction", 0.0)
+        if self.rdm_prediction and not self.get_intermediate_rep:
+            self.get_intermediate_rep["layers.5"] = "core"

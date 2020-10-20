@@ -1,4 +1,4 @@
-from .base import BaseConfig
+from .base import BaseConfig, baseline
 from nnfabrik.main import *
 
 
@@ -7,6 +7,7 @@ class TrainerConfig(BaseConfig):
     table = Trainer()
     fn = "bias_transfer.trainer.img_classification"
 
+    @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.force_cpu = kwargs.pop("force_cpu", False)
@@ -19,6 +20,7 @@ class TrainerConfig(BaseConfig):
         self.epoch = kwargs.pop("epoch", 0)
         self.scheduler = kwargs.pop("scheduler", None)
         self.scheduler_options = kwargs.pop("scheduler_options", {})
+        self.chkpt_options = kwargs.pop("chkpt_options", {})
         self.patience = kwargs.pop("patience", 10)
         self.threshold = kwargs.pop("threshold", 0.0001)
         self.verbose = kwargs.pop("verbose", False)
@@ -111,7 +113,7 @@ class TrainerConfig(BaseConfig):
             self.max_iter = self.lottery_ticket.get(
                 "rounds", 1
             ) * self.lottery_ticket.get("round_length", 100)
-        self.update(**kwargs)
+        self.show_epoch_progress = kwargs.pop("show_epoch_progress", False)
 
     @property
     def main_loop_modules(self):
@@ -132,3 +134,19 @@ class TrainerConfig(BaseConfig):
             modules.append("LotteryTicketPruning")
         modules.append("ModelWrapper")
         return modules
+
+
+class RegressionTrainerConfig(TrainerConfig):
+    config_name = "trainer"
+    table = Trainer()
+    fn = "bias_transfer.trainer.regression"
+
+    @baseline
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.threshold_mode = kwargs.pop("threshold_mode", "rel")
+        self.loss_functions = kwargs.pop("loss_functions", {"regression": "MSELoss"})
+        self.maximize = kwargs.pop("maximize", False)
+        self.noise_test = kwargs.pop("noise_test", {},)
+        self.apply_noise_to_validation = kwargs.pop("apply_noise_to_validation", False)
+        self.show_epoch_progress = kwargs.pop("show_epoch_progress", True)
