@@ -60,22 +60,58 @@ class ImageDatasetConfig(DatasetConfig):
                 self.input_size = 28
             elif self.dataset_cls == "MNIST-IB":
                 self.bias = kwargs.pop("bias", "translation")
+                self.dataset_sub_cls = kwargs.pop(
+                    "dataset_sub_cls", "MNIST"
+                )  # could be e.g. FashionMNIST
                 self.input_size = 40 if self.bias != "addition" else 80
-                if self.bias == "expansion":
-                    self.train_data_mean = (0.06402363,)
-                    self.train_data_std = (0.22534915,)
                 if self.bias == "color":
-                    self.train_data_mean = (0.03685451, 0.0367535, 0.03952756)
-                    self.train_data_std = (0.17386045, 0.16883257, 0.1768625)
-                elif self.bias == "translation":
-                    self.train_data_mean = (0.06402363,)
-                    self.train_data_std = (0.22534915,)
+                    self.train_data_mean = (
+                        (0.03685451, 0.0367535, 0.03952756)
+                        if self.dataset_sub_cls == "MNIST"
+                        else (0.08239705, 0.09176614, 0.0904255,)
+                    )
+                    self.train_data_std = (
+                        (0.17386045, 0.16883257, 0.1768625)
+                        if self.dataset_sub_cls == "MNIST"
+                        else (0.25112887, 0.26145387, 0.26009334,)
+                    )
                 elif self.bias == "noise":
-                    self.train_data_mean = (0.13405791,)
-                    self.train_data_std = (0.23784825,)
-                elif self.bias == "addition":
-                    self.train_data_mean = (0.06402363,)
-                    self.train_data_std = (0.22534915,)
+                    self.train_data_mean = (
+                        (0.13405791,)
+                        if self.dataset_sub_cls == "MNIST"
+                        else (0.19938468,)
+                    )
+                    self.train_data_std = (
+                        (0.23784825,)
+                        if self.dataset_sub_cls == "MNIST"
+                        else (0.28845804,)
+                    )
+                elif self.bias == "rotation":
+                    self.train_data_mean = (
+                        (0.0640235,)
+                        if self.dataset_sub_cls == "MNIST"
+                        else (0.14016011,)
+                    )
+                    self.train_data_std = (
+                        (0.22387815,)
+                        if self.dataset_sub_cls == "MNIST"
+                        else (0.28369352,)
+                    )
+                elif (
+                    self.bias == "addition"
+                    or self.bias == "translation"
+                    or self.bias == "expansion"
+                ):
+                    self.train_data_mean = (
+                        (0.06402363,)
+                        if self.dataset_sub_cls == "MNIST"
+                        else (0.1401599,)
+                    )
+                    self.train_data_std = (
+                        (0.22534915,)
+                        if self.dataset_sub_cls == "MNIST"
+                        else (0.28550556,)
+                    )
             self.data_dir = kwargs.pop(
                 "data_dir", "./data/image_classification/torchvision/"
             )

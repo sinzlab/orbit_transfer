@@ -210,8 +210,8 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             kwargs["train"] = False
         test_dataset = dataset_cls(**kwargs)
     elif config.dataset_cls == "MNIST-IB":
-        dataset_dir = os.path.join(config.data_dir, config.dataset_cls)
-        generate_and_save(config.bias, base_path=config.data_dir)
+        dataset_dir = os.path.join(config.data_dir, config.dataset_sub_cls+"-IB")
+        generate_and_save(config.bias, base_path=config.data_dir, dataset=config.dataset_sub_cls)
         train_dataset = NpyDataset(
             f"{config.bias}_train_source.npy",
             f"{config.bias}_train_target.npy",
