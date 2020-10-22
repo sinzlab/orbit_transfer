@@ -72,14 +72,15 @@ class ImgClassificationTrainer(Trainer):
     def compute_loss(
         self, mode, task_key, loss, outputs, targets,
     ):
-        loss += self.criterion["img_classification"](outputs, targets)
-        _, predicted = outputs.max(1)
+        if not self.config.mixup:  # otherwise this is done in the mainloop-module
+            loss += self.criterion["img_classification"](outputs, targets)
+            _, predicted = outputs.max(1)
+            self.tracker.log_objective(
+                100 * predicted.eq(targets).sum().item(), keys=(mode, task_key, "accuracy"),
+            )
         batch_size = targets.size(0)
         self.tracker.log_objective(
             batch_size, keys=(mode, task_key, "normalization"),
-        )
-        self.tracker.log_objective(
-            100 * predicted.eq(targets).sum().item(), keys=(mode, task_key, "accuracy"),
         )
         self.tracker.log_objective(
             loss.item() * batch_size, keys=(mode, task_key, "loss"),
