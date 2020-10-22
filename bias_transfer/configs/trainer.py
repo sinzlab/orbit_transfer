@@ -107,6 +107,8 @@ class TrainerConfig(BaseConfig):
         self.reset_linear_frequency = kwargs.pop("reset_linear_frequency", None)
         self.transfer_from_path = kwargs.pop("transfer_from_path", None)
         self.rdm_transfer = kwargs.pop("rdm_transfer", False)
+        self.l2sp = kwargs.pop("l2sp", 0.0)
+        self.mixup = kwargs.pop("mixup", 0.0)
         self.rdm_prediction = kwargs.pop("rdm_prediction", {})
         self.lottery_ticket = kwargs.pop("lottery_ticket", {})
         if self.lottery_ticket:
@@ -132,6 +134,10 @@ class TrainerConfig(BaseConfig):
             modules.append("RDMPrediction")
         if self.lottery_ticket:
             modules.append("LotteryTicketPruning")
+        if self.l2sp:
+            modules.append("L2SP")
+        if self.mixup:
+            modules.append("Mixup")
         modules.append("ModelWrapper")
         return modules
 

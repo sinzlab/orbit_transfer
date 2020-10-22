@@ -5,3 +5,5 @@ from .representation_matching import RepresentationMatching
 from .rdm_prediction import RDMPrediction
 from .lottery_ticket_pruning import LotteryTicketPruning
 from .model_wrapper import ModelWrapper
+from .l2_sp import L2SP
+from .mixup import Mixup
