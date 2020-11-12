@@ -70,8 +70,8 @@ class BaseConfig(object):
             self.table.add_entry(
                 self.fn,
                 self.to_dict(),
-                None,  # Fabrikant will automatically be set to current user
                 self.comment,
+                None,  # Fabrikant will automatically be set to current user
             )
 
     def save(self, save_directory):

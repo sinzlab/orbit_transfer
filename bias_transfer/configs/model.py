@@ -1,7 +1,7 @@
 from functools import partial
 
 from .base import BaseConfig, baseline
-from nnfabrik.main import *
+from bias_transfer.tables.nnfabrik import *
 
 
 class ModelConfig(BaseConfig):

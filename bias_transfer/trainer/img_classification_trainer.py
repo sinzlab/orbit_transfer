@@ -2,7 +2,7 @@ from functools import partial
 
 import torch
 
-from bias_transfer.trainer.utils.checkpointing import RemoteCheckpointing
+from bias_transfer.trainer.utils.checkpointing import RemoteCheckpointing, LocalCheckpointing
 from bias_transfer.trainer.trainer import Trainer
 from bias_transfer.trainer.utils import get_subdict
 from bias_transfer.utils import stringify

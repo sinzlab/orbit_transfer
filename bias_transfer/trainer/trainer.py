@@ -73,41 +73,6 @@ class Trainer:
             lr_decay_steps=self.config.lr_decay_steps,
         )
 
-    def generate_rep_dataset(self, data_loader, rep_name):
-        key, data_loader = next(iter(data_loader.items()))
-        data_loader_ = torch.utils.data.DataLoader(
-            data_loader.dataset,
-            batch_size=data_loader.batch_size,
-            sampler=None,  # make sure the dataset is in the right order and complete
-            num_workers=data_loader.num_workers,
-            pin_memory=data_loader.pin_memory,
-            shuffle=False,
-        )
-        _, collected_outputs = self.main_loop(
-            data_loader={key: data_loader_},
-            epoch=0,
-            mode="Validation",
-            return_outputs=True,
-        )
-        outputs = [o[rep_name] for o in collected_outputs]
-        rep_dataset = TensorDataset(torch.cat(outputs).to("cpu"))
-        orig_dataset = data_loader.dataset
-        combined_dataset = CombinedDataset(
-            JoinedDataset(
-                sample_datasets=[orig_dataset],
-                target_datasets=[orig_dataset, rep_dataset],
-            )
-        )
-        combined_data_loader = torch.utils.data.DataLoader(
-            dataset=combined_dataset,
-            batch_size=data_loader.batch_size,
-            sampler=data_loader.sampler,
-            num_workers=data_loader.num_workers,
-            pin_memory=data_loader.pin_memory,
-            shuffle=False,
-        )
-        return {key: combined_data_loader}
-
     def transfer_model(self):
         if self.config.transfer_from_path and not self.config.transfer_after_train:
             restore_saved_state(
@@ -119,17 +84,7 @@ class Trainer:
                 match_names=True,
                 restriction=self.config.transer_restriction,
             )
-            if self.config.rdm_transfer:
-                self.data_loaders["train"] = self.generate_rep_dataset(
-                    self.data_loaders["train"], "core",
-                )
-                self.data_loaders["transfer"] = self.generate_rep_dataset(
-                    self.data_loaders["transfer"], "core",
-                )
-                self.model.apply(
-                    weight_reset
-                )  # model was only used to generated representations now we clear it again
-            elif self.config.reset_linear:
+            if self.config.reset_linear:
                 print("Readout is being reset")
                 if isinstance(self.model, nn.DataParallel):
                     self.model = self.model.module

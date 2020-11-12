@@ -1,7 +1,7 @@
 from typing import Dict
 
 from .base import BaseConfig
-from nnfabrik.main import Seed
+from bias_transfer.tables.nnfabrik import *
 
 
 class Experiment(BaseConfig):

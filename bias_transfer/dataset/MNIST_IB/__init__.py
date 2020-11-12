@@ -3,11 +3,11 @@ from pathlib import Path
 
 import torch
 import numpy as np
-import nnfabrik as nnf
 
 from torchvision.datasets import MNIST, FashionMNIST, EMNIST, KMNIST, QMNIST
 from torchvision import transforms
 
+from nnfabrik.utility.nn_helpers import set_random_seed
 from .addition import apply_additon
 from .expansion import apply_expansion
 from .noise import apply_gaussian_noise
@@ -58,7 +58,7 @@ def generate_and_save(
     bias_options_: dict = None,
     dataset: str="MNIST"
 ):
-    nnf.utility.nn_helpers.set_random_seed(42)
+    set_random_seed(42)
     write_path = os.path.join(base_path, f"{dataset}-IB")
     Path(write_path).mkdir(parents=True, exist_ok=True)
     if (

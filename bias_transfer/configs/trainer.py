@@ -1,5 +1,5 @@
 from .base import BaseConfig, baseline
-from nnfabrik.main import *
+from bias_transfer.tables.nnfabrik import *
 
 
 class TrainerConfig(BaseConfig):
@@ -106,7 +106,6 @@ class TrainerConfig(BaseConfig):
         self.reset_linear = kwargs.pop("reset_linear", False)
         self.reset_linear_frequency = kwargs.pop("reset_linear_frequency", None)
         self.transfer_from_path = kwargs.pop("transfer_from_path", None)
-        self.rdm_transfer = kwargs.pop("rdm_transfer", False)
         self.l2sp = kwargs.pop("l2sp", 0.0)
         self.mixup = kwargs.pop("mixup", 0.0)
         self.rdm_prediction = kwargs.pop("rdm_prediction", {})
@@ -130,7 +129,7 @@ class TrainerConfig(BaseConfig):
             modules.append("NoiseAdvTraining")
         if self.reset_linear_frequency:
             modules.append("RandomReadoutReset")
-        if self.rdm_transfer:
+        if self.rdm_prediction:
             modules.append("RDMPrediction")
         if self.lottery_ticket:
             modules.append("LotteryTicketPruning")
@@ -156,3 +155,14 @@ class RegressionTrainerConfig(TrainerConfig):
         self.noise_test = kwargs.pop("noise_test", {},)
         self.apply_noise_to_validation = kwargs.pop("apply_noise_to_validation", False)
         self.show_epoch_progress = kwargs.pop("show_epoch_progress", True)
+
+
+class TransferTrainerConfig(TrainerConfig):
+    config_name = "trainer"
+    table = Trainer()
+    fn = "bias_transfer.trainer.transfer"
+
+    @baseline
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.rdm_generation = kwargs.pop("rdm_generation", "")

@@ -9,7 +9,7 @@ from bias_transfer.utils.io import load_checkpoint
 import numpy as np
 from matplotlib import cm
 from sklearn.cluster import AgglomerativeClustering
-from nnfabrik.main import *
+from bias_transfer.tables.nnfabrik import *
 
 corruption_map = {
     "shot_noise": "Shot Noise",

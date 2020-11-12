@@ -7,13 +7,13 @@ import torch
 import numpy as np
 import seaborn as sns
 import pandas as pd
-import nnfabrik as nnf
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
 
 from bias_transfer.analysis.utils import plot_preparation, save_plot
 from bias_transfer.models import IntermediateLayerGetter
 from bias_transfer.trainer.main_loop_modules import NoiseAugmentation
+from nnfabrik.utility.dj_helpers import make_hash
 from .analyzer import RepresentationAnalyzer
 
 ALL_REPRESENTATIONS = {
@@ -216,7 +216,7 @@ class NoiseStabilityAnalyzer(RepresentationAnalyzer):
         self.model = IntermediateLayerGetter(self.model, ALL_REPRESENTATIONS)
         self.accuracy = None
         self.tmp_path = os.path.join(
-            self.base_path, "tmp" + nnf.utility.dj_helpers.make_hash(self.name)
+            self.base_path, "tmp" + make_hash(self.name)
         )
         self.num_batches = math.ceil(self.num_samples / self.sample_loader.batch_size)
 

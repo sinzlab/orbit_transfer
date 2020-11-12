@@ -1,13 +1,10 @@
-from nnfabrik.main import *
-from nnfabrik.templates.trained_model_chkpts import TrainedModelChkptBase
-from .collapse import Collapsed
+from . import nnfabrik
+from nnfabrik.templates.checkpoint import TrainedModelChkptBase, my_checkpoint
 
+Checkpoint = my_checkpoint(nnfabrik)
 
-@schema
+@nnfabrik.schema
 class TrainedModel(TrainedModelChkptBase):
     table_comment = "My Trained models"
-
-
-@schema
-class CollapsedTrainedModel(Collapsed):
-    Source = TrainedModel()
+    nnfabrik = nnfabrik
+    checkpoint_table = Checkpoint

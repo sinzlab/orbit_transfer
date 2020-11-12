@@ -1,5 +1,5 @@
-from nnfabrik.main import *
-from nnfabrik.template import *
+from .nnfabrik import *
+from nnfabrik.templates.trained_model import *
 from .trained_model import TrainedModel
 
 

@@ -1,7 +1,7 @@
 from typing import Dict
 
 from .base import BaseConfig, baseline
-from nnfabrik.main import *
+from bias_transfer.tables.nnfabrik import *
 
 
 class DatasetConfig(BaseConfig):
