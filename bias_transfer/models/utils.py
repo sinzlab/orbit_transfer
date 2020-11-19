@@ -3,6 +3,20 @@ from torchvision.models.resnet import Bottleneck, BasicBlock
 from bias_transfer.models.resnet import ResNet
 
 
+def reset_params(model, reset=None):
+    model = model.module if isinstance(model, nn.DataParallel) else model
+    if reset == "all":
+        print(f"Resetting all parameters")
+        model.apply(weight_reset)
+    elif reset:
+        print(f"Resetting {reset}")
+        for layer in reset:
+            if isinstance(layer, str):
+                getattr(model, layer).apply(weight_reset)
+            else:
+                model[layer].apply(weight_reset)
+
+
 def freeze_params(model, freeze=None, readout_name=""):
     if not freeze:
         return

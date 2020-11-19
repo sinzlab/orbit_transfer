@@ -15,6 +15,8 @@ class NpyDataset(VisionDataset):
         transforms=None,
         transform=None,
         target_transform=None,
+        source_type=torch.float32,
+        target_type=torch.long,
     ):
         super().__init__(root, transforms, transform, target_transform)
         self.sample_file = os.path.join(self.root, sample_file)
@@ -23,18 +25,18 @@ class NpyDataset(VisionDataset):
         self.end = end
         self.samples = None
         self.targets = None
-        self.load()
+        self.load(source_type, target_type)
         self.end = self.end if self.end > 0 else self.targets.shape[0]
 
-    def load(self):
+    def load(self, source_type, target_type):
         if self.samples is None:
             self.samples = torch.from_numpy(
                 np.load(self.sample_file)[self.start : self.end]
-            ).type(torch.float32)
+            ).type(source_type)
         if self.targets is None:
             self.targets = torch.from_numpy(
                 np.load(self.target_file)[self.start : self.end]
-            ).type(torch.long)
+            ).type(target_type)
 
     def __getitem__(self, index):
         sample = self.samples[index]

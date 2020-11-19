@@ -1,4 +1,4 @@
-from bias_transfer.trainer.utils.checkpointing import LocalCheckpointing
+from bias_transfer.trainer.utils.checkpointing import LocalCheckpointing, RemoteCheckpointing
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from bias_transfer.trainer.utils import get_subdict
 from mlutils.tracking import AdvancedMultipleObjectiveTracker
@@ -10,21 +10,25 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
 
 class RegressionTrainer(ImgClassificationTrainer):
-    checkpointing_cls = LocalCheckpointing
+    checkpointing_cls = RemoteCheckpointing
 
-    def get_tracker(self):
-        objectives = {
-            "LR": 0,
-            "Training": {"regression": {"loss": 0, "normalization": 0}},
-            "Validation": {
-                "regression": {"loss": 0, "normalization": 0},
-                "patience": 0,
-            },
-        }
-        tracker = AdvancedMultipleObjectiveTracker(
-            main_objective=("regression", "loss"), save_each_epoch=False, **objectives
-        )
-        return tracker
+    @property
+    def tracker(self):
+        try:
+            return self._tracker
+        except AttributeError:
+            objectives = {
+                "LR": 0,
+                "Training": {"regression": {"loss": 0, "normalization": 0}},
+                "Validation": {
+                    "regression": {"loss": 0, "normalization": 0},
+                    "patience": 0,
+                },
+            }
+            self._tracker = AdvancedMultipleObjectiveTracker(
+                main_objective=("regression", "loss"), **objectives
+            )
+            return self._tracker
 
     def compute_loss(
         self, mode, task_key, loss, outputs, targets,

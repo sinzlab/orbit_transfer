@@ -5,7 +5,7 @@ import numpy as np
 from torch import nn
 from torch.autograd import Variable
 
-from .main_loop_module import MainLoopModule
+from bias_transfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 
 
 class Mixup(MainLoopModule):
@@ -17,7 +17,7 @@ class Mixup(MainLoopModule):
         Returns mixed inputs, and saves index and lambdas
         Adapted from https://github.com/facebookresearch/mixup-cifar10/blob/master/train.py
         """
-        alpha = self.config.mixup
+        alpha = self.config.regularization.get("alpha",1.0)
         if alpha > 0:
             self.lam = np.random.beta(alpha, alpha)
         else:

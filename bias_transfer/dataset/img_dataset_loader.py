@@ -144,7 +144,9 @@ def get_transforms(config):
             else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
-            transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if config.convert_to_rgb else None,
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1))
+            if config.convert_to_rgb
+            else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
@@ -156,7 +158,9 @@ def get_transforms(config):
             else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
-            transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if config.convert_to_rgb else None,
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1))
+            if config.convert_to_rgb
+            else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
@@ -165,7 +169,9 @@ def get_transforms(config):
             transforms.ToPILImage() if config.dataset_cls == "MNIST-IB" else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
-            transforms.Lambda(lambda x: x.repeat(3, 1, 1)) if config.convert_to_rgb else None,
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1))
+            if config.convert_to_rgb
+            else None,
             transforms.Normalize(config.train_data_mean, config.train_data_std)
             if config.apply_normalization
             else None,
@@ -210,25 +216,30 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             kwargs["train"] = False
         test_dataset = dataset_cls(**kwargs)
     elif config.dataset_cls == "MNIST-IB":
-        dataset_dir = os.path.join(config.data_dir, config.dataset_sub_cls+"-IB")
-        generate_and_save(config.bias, base_path=config.data_dir, dataset=config.dataset_sub_cls)
+        dataset_dir = os.path.join(config.data_dir, config.dataset_sub_cls + "-IB")
+        generate_and_save(
+            config.bias, base_path=config.data_dir, dataset=config.dataset_sub_cls
+        )
         train_dataset = NpyDataset(
             f"{config.bias}_train_source.npy",
             f"{config.bias}_train_target.npy",
             root=dataset_dir,
             transform=transform_train,
+            target_type=torch.float32 if "regression" in config.bias else torch.long
         )
         valid_dataset = NpyDataset(
             f"{config.bias}_train_source.npy",
             f"{config.bias}_train_target.npy",
             root=dataset_dir,
             transform=transform_val,
+            target_type=torch.float32 if "regression" in config.bias else torch.long
         )
         test_dataset = NpyDataset(
             f"{config.bias}_test_source.npy",
             f"{config.bias}_test_target.npy",
             root=dataset_dir,
             transform=transform_test,
+            target_type=torch.float32 if "regression" in config.bias else torch.long
         )
     else:
         dataset_dir = get_dataset(
@@ -384,10 +395,11 @@ def get_data_loaders(
         pin_memory=config.pin_memory,
         shuffle=True,
     )
+    task_key = "regression" if "regression" in config.bias else "img_classification"
     data_loaders = {
-        "train": {"img_classification": train_loader},
-        "validation": {"img_classification": valid_loader},
-        "test": {"img_classification": test_loader},
+        "train": {task_key: train_loader},
+        "validation": {task_key: valid_loader},
+        "test": {task_key: test_loader},
     }
 
     if config.add_stylized_test:

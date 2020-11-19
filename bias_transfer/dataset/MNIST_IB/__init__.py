@@ -44,9 +44,21 @@ bias_dict = {
             "color_variance": 0.02,
         },
     ),
+    "color_shuffle": (
+        apply_color,
+        {
+            "cfg_means": get_color_codes(),
+            "cbg_means": get_color_codes(),
+            "bg": False,
+            "fg": True,
+            "color_variance": 0.02,
+            "shuffle": True
+        },
+    ),
     "noise": (apply_gaussian_noise, {"severity": -1}),  # random
     "translation": (apply_translation, {"std": 5}),
     "rotation": (apply_rotation, {}),
+    "rotation_regression": (apply_rotation, {"regression": True}),
     "addition": (apply_additon, {}),
     "expansion": (None, {}),
 }
@@ -56,7 +68,7 @@ def generate_and_save(
     bias: str,
     base_path: str = "/work/data/image_classification/torchvision/",
     bias_options_: dict = None,
-    dataset: str="MNIST"
+    dataset: str = "MNIST",
 ):
     set_random_seed(42)
     write_path = os.path.join(base_path, f"{dataset}-IB")
@@ -71,8 +83,12 @@ def generate_and_save(
     apply_bias, bias_options = bias_dict[bias]
     bias_options = bias_options_ if bias_options_ is not None else bias_options
     transform = transforms.Compose([transforms.ToTensor(),])
-    train = globals().get(dataset)(root=base_path, train=True, download=True, transform=transform,)
-    test = globals().get(dataset)(root=base_path, train=False, download=True, transform=transform,)
+    train = globals().get(dataset)(
+        root=base_path, train=True, download=True, transform=transform,
+    )
+    test = globals().get(dataset)(
+        root=base_path, train=False, download=True, transform=transform,
+    )
     train_loader = torch.utils.data.DataLoader(train, batch_size=64, shuffle=False,)
     test_loader = torch.utils.data.DataLoader(test, batch_size=64, shuffle=False,)
     train_ds = generate_dataset(

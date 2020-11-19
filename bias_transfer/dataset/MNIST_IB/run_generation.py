@@ -3,8 +3,16 @@ import numpy as np
 from . import generate_and_save
 
 
-def main(dataset="MNIST"):
-    for bias in ["expansion", "color", "translation", "rotation", "noise", "addition"]:
+def main(dataset="FashionMNIST"):
+    for bias in ["expansion",
+                 "color",
+                 "color_shuffle",
+                 "translation",
+                 "rotation",
+                 "rotation_regression",
+                 "noise",
+                 # "addition"
+                 ]:
         generate_and_save(
             bias, base_path="/work/data/image_classification/torchvision/",dataset=dataset
         )

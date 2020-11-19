@@ -102,13 +102,15 @@ class TrainerConfig(BaseConfig):
         self.freeze_bn = kwargs.pop("freeze_bn", False)
         self.transfer_restriction = kwargs.pop("transfer_restriction", [])
         self.transfer_after_train = kwargs.pop("transfer_after_train", False)
+        self.single_input_stream = kwargs.pop("single_input_stream", True)
         self.readout_name = kwargs.pop("readout_name", "fc")
-        self.reset_linear = kwargs.pop("reset_linear", False)
+        self.reset = kwargs.pop("reset", ())
         self.reset_linear_frequency = kwargs.pop("reset_linear_frequency", None)
         self.transfer_from_path = kwargs.pop("transfer_from_path", None)
-        self.l2sp = kwargs.pop("l2sp", 0.0)
-        self.mixup = kwargs.pop("mixup", 0.0)
-        self.rdm_prediction = kwargs.pop("rdm_prediction", {})
+        self.regularization = kwargs.pop(
+            "regularization",
+            {},  # {"regularizer": "L2SP/Mixup/RDL/KnowledgeDistillation", "alpha": 1.0, "decay_alpha": True, }
+        )
         self.lottery_ticket = kwargs.pop("lottery_ticket", {})
         if self.lottery_ticket:
             self.max_iter = self.lottery_ticket.get(
@@ -129,14 +131,10 @@ class TrainerConfig(BaseConfig):
             modules.append("NoiseAdvTraining")
         if self.reset_linear_frequency:
             modules.append("RandomReadoutReset")
-        if self.rdm_prediction:
-            modules.append("RDMPrediction")
         if self.lottery_ticket:
             modules.append("LotteryTicketPruning")
-        if self.l2sp:
-            modules.append("L2SP")
-        if self.mixup:
-            modules.append("Mixup")
+        if self.regularization:
+            modules.append(self.regularization["regularizer"])
         modules.append("ModelWrapper")
         return modules
 
@@ -149,12 +147,12 @@ class RegressionTrainerConfig(TrainerConfig):
     @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.threshold_mode = kwargs.pop("threshold_mode", "rel")
-        self.loss_functions = kwargs.pop("loss_functions", {"regression": "MSELoss"})
-        self.maximize = kwargs.pop("maximize", False)
-        self.noise_test = kwargs.pop("noise_test", {},)
-        self.apply_noise_to_validation = kwargs.pop("apply_noise_to_validation", False)
-        self.show_epoch_progress = kwargs.pop("show_epoch_progress", True)
+        # self.threshold_mode = kwargs.pop("threshold_mode", "rel")
+        self.loss_functions = {"regression": "MSELoss"}
+        self.maximize = False
+        self.noise_test = {}
+        self.apply_noise_to_validation = False
+        # self.show_epoch_progress = kwargs.pop("show_epoch_progress", True)
 
 
 class TransferTrainerConfig(TrainerConfig):
@@ -165,4 +163,15 @@ class TransferTrainerConfig(TrainerConfig):
     @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.rdm_generation = kwargs.pop("rdm_generation", "")
+        self.save_input = kwargs.pop("save_input", False)
+
+
+class TransferTrainerRegressionConfig(RegressionTrainerConfig):
+    config_name = "trainer"
+    table = Trainer()
+    fn = "bias_transfer.trainer.regression_transfer"
+
+    @baseline
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.save_input = kwargs.pop("save_input", False)

@@ -1,15 +1,18 @@
 from functools import partial
 
-from torch.utils.data.dataset import TensorDataset
 from tqdm import tqdm
 import torch
 from torch import optim, nn
 import nnfabrik as nnf
-from bias_transfer.dataset.combined_dataset import CombinedDataset, JoinedDataset
 from bias_transfer.utils.io import restore_saved_state
 from mlutils.training import copy_state
 
-from bias_transfer.models.utils import freeze_params, set_bn_to_eval, weight_reset
+from bias_transfer.models.utils import (
+    freeze_params,
+    set_bn_to_eval,
+    weight_reset,
+    reset_params,
+)
 from bias_transfer.trainer.utils import SchedulerWrapper
 from bias_transfer.configs.trainer import TrainerConfig
 from nnfabrik.utility.nn_helpers import load_state_dict
@@ -32,16 +35,15 @@ class Trainer:
         self.seed = seed
 
         self.data_loaders = dataloaders
-        self.task_keys = dataloaders["validation"].keys()
-        self.tracker = self.get_tracker()
+        self.task_keys = dataloaders["train"].keys()
         self.main_loop_modules = [
             globals().get(k)(trainer=self) for k in self.config.main_loop_modules
         ]
         self.optimizer, self.stop_closure, self.criterion = self.get_training_controls()
         self.lr_scheduler = self.prepare_lr_schedule()
 
-        # Potentially prepare for transfer learning (e.g. copying parameters)
-        self.transfer_model()
+        # Potentially reset parts of the model (after loading pretrained parameters)
+        reset_params(self.model, self.config.reset)
         # Potentially freeze parts of the model
         freeze_params(self.model, self.config.freeze, self.config.readout_name)
 
@@ -72,26 +74,6 @@ class Trainer:
             scheduler=self.lr_scheduler,
             lr_decay_steps=self.config.lr_decay_steps,
         )
-
-    def transfer_model(self):
-        if self.config.transfer_from_path and not self.config.transfer_after_train:
-            restore_saved_state(
-                self.model,
-                self.config.transfer_from_path,
-                ignore_missing=True,
-                ignore_dim_mismatch=True,
-                ignore_unused=True,
-                match_names=True,
-                restriction=self.config.transer_restriction,
-            )
-            if self.config.reset_linear:
-                print("Readout is being reset")
-                if isinstance(self.model, nn.DataParallel):
-                    self.model = self.model.module
-                if isinstance(self.config.readout_name, str):
-                    getattr(self.model, self.config.readout_name).apply(weight_reset)
-                else:
-                    self.model[self.config.readout_name].apply(weight_reset)
 
     def prepare_lr_schedule(self):
         lr_scheduler = None
@@ -170,7 +152,7 @@ class Trainer:
 
                 # Pre-Forward
                 loss = torch.zeros(1, device=self.device)
-                inputs, targets, task_key, batch_dict = self.move_data(batch_data)
+                inputs, targets, task_key, _ = self.move_data(batch_data)
                 shared_memory = {}  # e.g. to remember where which noise was applied
                 model_ = self.model
                 for module in self.main_loop_modules:
@@ -182,7 +164,9 @@ class Trainer:
 
                 # Post-Forward and Book-keeping
                 if return_outputs:
-                    collected_outputs.append(outputs[0])
+                    collected_outputs.append(
+                        {k: v.detach().to("cpu") for k, v in outputs[0].items()}
+                    )
                 for module in self.main_loop_modules:
                     outputs, loss, targets = module.post_forward(
                         outputs, loss, targets, **shared_memory
@@ -201,7 +185,6 @@ class Trainer:
                     ):
                         self.optimizer.step()
                         self.optimizer.zero_grad()
-
         if reset_state_dict:
             load_state_dict(
                 self.model,
@@ -217,7 +200,7 @@ class Trainer:
         # else:
         objective = self.tracker.get_current_main_objective(mode)
         if return_outputs:
-            return (objective, collected_outputs)
+            return objective, collected_outputs
         else:
             return objective
 
@@ -253,7 +236,8 @@ class Trainer:
             self.model.state_dict(),
         )
 
-    def get_tracker(self):
+    @property
+    def tracker(self):
         raise NotImplementedError
 
     def move_data(self, batch_data):

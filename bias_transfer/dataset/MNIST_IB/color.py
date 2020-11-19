@@ -36,15 +36,25 @@ def get_std_color(means, targets, var):
 
 
 def apply_color(
-    x, targets, cfg_means=None, cbg_means=None, fg=True, bg=False, color_variance=0.0
+    x,
+    targets,
+    cfg_means=None,
+    cbg_means=None,
+    fg=True,
+    bg=False,
+    color_variance=0.0,
+    shuffle=False,
 ):
     assert (
         len(x.shape) == 4
     ), "Something is wrong, size of input x should be 4 dimensional (B x C x H x W; perhaps number of channels is degenrate? If so, it should be 1)"
     xs = x.shape
-    x = (((x * 255) > 150) * 255).astype(np.float)  # thresholding to separate fg and bg
+    x = (((x * 255) > 10) * 255).astype(np.float)  # thresholding to separate fg and bg
     x_rgb = np.ones((xs[0], 3, xs[2], xs[3])).astype(np.float)
     x_rgb = x_rgb * x
+    targets_ = np.copy(targets)
+    if shuffle:
+        np.random.shuffle(targets)  # to generate cue-conflict by assigning wrong colors
     if fg:
         x_rgb_fg = 1.0 * x_rgb
         x_rgb_fg *= get_std_color(cfg_means, targets, color_variance)
@@ -58,4 +68,4 @@ def apply_color(
     x_rgb = x_rgb_fg + x_rgb_bg
     x_rgb = np.clip(x_rgb, a_min=0.0, a_max=255.0)
     color_data_x = x_rgb / 255.0
-    return color_data_x, targets
+    return color_data_x, targets_

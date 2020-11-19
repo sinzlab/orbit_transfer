@@ -28,22 +28,22 @@ class LeNet5(
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, num_classes)
 
-        self.dropout = dropout
+        self.dropout = nn.Dropout(p=dropout) if dropout else None
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
-        x = F.dropout2d(x, p=self.dropout) if self.dropout else x
+        x = self.dropout(x) if self.dropout else x
         # Max pooling over a (2, 2) window
         x = F.max_pool2d(x, (2, 2))
         x = F.relu(self.conv2(x))
-        x = F.dropout2d(x, p=self.dropout) if self.dropout else x
+        x = self.dropout(x) if self.dropout else x
         # If the size is a square you can only specify a single number
         x = F.max_pool2d(x, 2)
         x = x.view(-1, self.flat_feature_size)
         x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.dropout) if self.dropout else x
+        x = self.dropout(x) if self.dropout else x
         x = F.relu(self.fc2(x))
-        x = F.dropout(x, p=self.dropout) if self.dropout else x
+        x = self.dropout(x) if self.dropout else x
         x = self.fc3(x)
         return x
 
@@ -60,15 +60,15 @@ class LeNet300100(nn.Module):
         self.fc1 = nn.Linear(input_size * input_size * input_channels, 300)
         self.fc2 = nn.Linear(300, 100)
         self.fc3 = nn.Linear(100, num_classes)
-        self.dropout = dropout
+        self.dropout = nn.Dropout(p=dropout) if dropout else None
         self.flat_input_size = input_size * input_size * input_channels
 
     def forward(self, x):
         x = x.view(x.size(0), self.flat_input_size)
         x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.dropout) if self.dropout else x
+        x = self.dropout(x) if self.dropout else x
         x = F.relu(self.fc2(x))
-        x = F.dropout(x, p=self.dropout) if self.dropout else x
+        x = self.dropout(x) if self.dropout else x
         x = self.fc3(x)
         return x
 

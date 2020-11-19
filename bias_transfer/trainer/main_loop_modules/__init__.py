@@ -2,8 +2,9 @@ from .noise_adv_training import NoiseAdvTraining
 from .noise_augmentation import NoiseAugmentation
 from .random_readout_reset import RandomReadoutReset
 from .representation_matching import RepresentationMatching
-from .rdm_prediction import RDMPrediction
 from .lottery_ticket_pruning import LotteryTicketPruning
 from .model_wrapper import ModelWrapper
-from .l2_sp import L2SP
-from .mixup import Mixup
+from .parameter_regularization.l2_sp import L2SP
+from .parameter_regularization.mixup import Mixup
+from .representation_regularization.rdl import RDL
+from .representation_regularization.knowledge_distillation import KnowledgeDistillation

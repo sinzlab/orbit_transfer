@@ -2,7 +2,10 @@ from functools import partial
 
 import torch
 
-from bias_transfer.trainer.utils.checkpointing import RemoteCheckpointing, LocalCheckpointing
+from bias_transfer.trainer.utils.checkpointing import (
+    RemoteCheckpointing,
+    LocalCheckpointing,
+)
 from bias_transfer.trainer.trainer import Trainer
 from bias_transfer.trainer.utils import get_subdict
 from bias_transfer.utils import stringify
@@ -19,25 +22,35 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 class ImgClassificationTrainer(Trainer):
     checkpointing_cls = RemoteCheckpointing
 
-    def get_tracker(self):
-        objectives = {
-            "LR": 0,
-            "Training": {
-                "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0}
-            },
-            "Validation": {
-                "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0},
-                "patience": 0,
-            },
-        }
-        tracker = AdvancedMultipleObjectiveTracker(
-            main_objective=("img_classification", "accuracy"), **objectives
-        )
-        return tracker
+    @property
+    def tracker(self):
+        try:
+            return self._tracker
+        except AttributeError:
+            objectives = {
+                "LR": 0,
+                "Training": {
+                    "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0}
+                },
+                "Validation": {
+                    "img_classification": {
+                        "loss": 0,
+                        "accuracy": 0,
+                        "normalization": 0,
+                    },
+                    "patience": 0,
+                },
+            }
+            self._tracker = AdvancedMultipleObjectiveTracker(
+                main_objective=("img_classification", "accuracy"), **objectives
+            )
+            return self._tracker
 
     def get_training_controls(self):
         criterion, stop_closure = {}, {}
         for k in self.task_keys:
+            if k == "transfer":
+                continue  # no validation on this data and training is handled in mainloop modules
             if self.config.loss_weighing:
                 pass
                 # self.criterion[k] = XEntropyLossWrapper(
@@ -59,32 +72,45 @@ class ImgClassificationTrainer(Trainer):
         return optimizer, stop_closure, criterion
 
     def move_data(self, batch_data):
-        batch_dict = None
-        data_key, inputs = batch_data[0], batch_data[1][0]
+        data_key, inputs, targets = batch_data[0], batch_data[1][0], batch_data[1][1]
 
-        if len(batch_data[1]) > 2:
-            targets = [b.to(self.device) for b in batch_data[1][1:]]
+        # targets
+        if isinstance(targets, dict):
+            targets = {k: t.to(self.device) for k, t in targets.items()}
+            if len(targets) == 1 and data_key != "transfer":
+                targets = next(iter(targets.values()))
         else:
-            targets = batch_data[1][1].to(self.device)
+            targets = targets.to(self.device)
+
+        # inputs
+        if (
+            isinstance(inputs, dict) and len(inputs) == 1
+        ):  # TODO add support for multiple inputs
+            inputs = next(iter(inputs.values()))
         inputs = inputs.to(self.device, dtype=torch.float)
-        return inputs, targets, data_key, batch_dict
+
+        return inputs, targets, data_key, None
 
     def compute_loss(
         self, mode, task_key, loss, outputs, targets,
     ):
-        if not self.config.mixup:  # otherwise this is done in the mainloop-module
-            loss += self.criterion["img_classification"](outputs, targets)
-            _, predicted = outputs.max(1)
+        if task_key != "transfer":
+            if (
+                not self.config.regularization.get("regularizer") == "Mixup"
+            ):  # otherwise this is done in the mainloop-module
+                loss += self.criterion[task_key](outputs, targets)
+                _, predicted = outputs.max(1)
+                self.tracker.log_objective(
+                    100 * predicted.eq(targets).sum().item(),
+                    keys=(mode, task_key, "accuracy"),
+                )
+            batch_size = targets.size(0)
             self.tracker.log_objective(
-                100 * predicted.eq(targets).sum().item(), keys=(mode, task_key, "accuracy"),
+                batch_size, keys=(mode, task_key, "normalization"),
             )
-        batch_size = targets.size(0)
-        self.tracker.log_objective(
-            batch_size, keys=(mode, task_key, "normalization"),
-        )
-        self.tracker.log_objective(
-            loss.item() * batch_size, keys=(mode, task_key, "loss"),
-        )
+            self.tracker.log_objective(
+                loss.item() * batch_size, keys=(mode, task_key, "loss"),
+            )
         return loss
 
     def test_final_model(self, epoch, bn_train=""):
@@ -93,6 +119,8 @@ class ImgClassificationTrainer(Trainer):
         # test the final model with noise on the dev-set
         # test the final model on the test set
         for k in self.task_keys:
+            if k == "transfer":
+                continue
             if "rep_matching" not in k and self.config.noise_test:
                 for n_type, n_vals in self.config.noise_test.items():
                     for val in n_vals:

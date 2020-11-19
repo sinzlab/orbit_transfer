@@ -60,11 +60,12 @@ class ImageDatasetConfig(DatasetConfig):
                 self.input_size = 28
             elif self.dataset_cls == "MNIST-IB":
                 self.bias = kwargs.pop("bias", "translation")
+                self.bias = "expansion" if self.bias == "clean" else self.bias
                 self.dataset_sub_cls = kwargs.pop(
                     "dataset_sub_cls", "MNIST"
                 )  # could be e.g. FashionMNIST
                 self.input_size = 40 if self.bias != "addition" else 80
-                if self.bias == "color":
+                if self.bias == "color" or self.bias == "color_shuffle":
                     self.train_data_mean = (
                         (0.03685451, 0.0367535, 0.03952756)
                         if self.dataset_sub_cls == "MNIST"
@@ -86,7 +87,7 @@ class ImageDatasetConfig(DatasetConfig):
                         if self.dataset_sub_cls == "MNIST"
                         else (0.28845804,)
                     )
-                elif self.bias == "rotation":
+                elif self.bias == "rotation" or self.bias == "rotation_regression":
                     self.train_data_mean = (
                         (0.0640235,)
                         if self.dataset_sub_cls == "MNIST"
@@ -263,3 +264,11 @@ class RegressionDatasetConfig(DatasetConfig):
         self.shuffle = kwargs.pop("shuffle", True)
         self.valid_size = kwargs.pop("valid_size", 0.1)
         self.train_range = kwargs.pop("train_range", 10)
+
+
+class TransferredDatasetConfig(ImageDatasetConfig):
+    config_name = "dataset"
+    table = Dataset()
+    fn = "bias_transfer.dataset.transferred_dataset_loader"
+
+    pass

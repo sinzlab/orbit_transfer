@@ -45,10 +45,12 @@ class ClassificationModelConfig(ModelConfig):
             self.input_size = 28
             self.input_channels = 1
         elif dataset_cls == "MNIST-IB":
-            self.num_classes = kwargs.pop("num_classes", 10)
             self.bias = kwargs.pop("bias", "")
+            self.num_classes = 1 if "regression" in self.bias else 10
             self.input_size = 80 if self.bias == "addition" else 40
-            self.input_channels = 3 if self.bias == "color" else 1
+            self.input_channels = kwargs.pop(
+                "input_channels", 3 if "color" in self.bias else 1
+            )
         elif dataset_cls == "SVHN":
             self.num_classes = kwargs.pop("num_classes", 10)
             self.input_size = 32
@@ -80,20 +82,10 @@ class ClassificationModelConfig(ModelConfig):
             "noise_sigmoid_output", self.noise_adv_classification
         )
         self.get_intermediate_rep = kwargs.pop("get_intermediate_rep", {})
-        if (
-            self.noise_adv_classification
-            or self.noise_adv_regression
-            or kwargs.pop("rdm_prediction", False)
-            or kwargs.pop("representation_matching", False)
-            and not self.get_intermediate_rep
-        ):
-            self.get_intermediate_rep["flatten"] = "core"
-
         # vgg specific
         self.pretrained = kwargs.pop("pretrained", False)
         self.pretrained_path = kwargs.pop("pretrained_url", "")
         self.readout_type = kwargs.pop("readout_type", "dense")
-
 
 
 class NeuralModelConfig(ModelConfig):
@@ -165,6 +157,3 @@ class RegressionModelConfig(ModelConfig):
         self.activation = kwargs.pop("activation", "sigmoid")
         self.dropout = kwargs.pop("dropout", 0.0)
         self.get_intermediate_rep = kwargs.pop("get_intermediate_rep", {})
-        self.rdm_prediction = kwargs.pop("rdm_prediction", 0.0)
-        if self.rdm_prediction and not self.get_intermediate_rep:
-            self.get_intermediate_rep["layers.5"] = "core"

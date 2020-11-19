@@ -54,6 +54,25 @@ class NoiseAugmentation(MainLoopModule):
         noise_scale=None,
         in_place=False,
     ):
+        """
+
+        Args:
+            x: input batch
+            device: gpu/cpu
+            std: dictionary of the for {noise_level_a: percent_a, noise_level_b: percent_b, ...}
+                 determining the mixture of noise levels (in standard deviation) we will apply
+            snr: dictionary of the for {noise_level_a: percent_a, noise_level_b: percent_b, ...}
+                 determining the mixture of noise levels (in signal-to-noise ratio) we will apply
+            rnd_gen: optional random generator
+            img_min: minimum pixel value (to compensate for applying this after normalization)
+            img_max: maximum pixel value (to compensate for applying this after normalization)
+            noise_scale: optional factor to scale the noise magnitude
+            in_place: option to apply the noise in place
+
+        Returns:
+
+            noise augmented batch, tensor of standard deviations that were applied to each sample
+        """
         if not in_place:
             x = x.clone()
         if len(x.shape) == 3:
