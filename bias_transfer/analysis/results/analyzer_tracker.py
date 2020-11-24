@@ -6,6 +6,7 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from bias_transfer.analysis.utils import plot_preparation, save_plot
+from bias_transfer.tables.transfer import TransferredTrainedModel
 from bias_transfer.utils.io import load_checkpoint
 import numpy as np
 from matplotlib import cm
@@ -65,56 +66,193 @@ class Analyzer:
     def __init__(self):
         self.data = {}
 
-    def add_data(self, configs, table, transfer_level=0):
-        self.data.update(self._load_data(configs, table, transfer_level))
-        return self.data
-
-    def _load_data(self, configs, table, transfer_level):
+    def load_data(self, configs, transfer_levels=(0,)):
         # Select data:
-        fetched = {}
         for description, config in configs.items():
-            if transfer_level < len(config.get_restrictions()):
-                restricted = table & config.get_restrictions()[transfer_level]
-            else:
-                restricted = None
-            if restricted:  # could be empty if entry is not computed yet
-                fetch_res = restricted.fetch1("output")
-                fetched[description] = Tracker.from_dict(fetch_res)
-        return fetched
+            for level in transfer_levels:
+                restriction = config.get_restrictions(level)
+                if restriction:
+                    restricted = TransferredTrainedModel() & restriction
+                else:
+                    restricted = None
+                if restricted:  # could be empty if entry is not computed yet
+                    fetch_res = restricted.fetch1("output")
+                    if fetch_res:  # could be a data generation step (no output)
+                        if description not in self.data:
+                            self.data[description] = {
+                                level: Tracker.from_dict(fetch_res)
+                            }
+                        else:
+                            self.data[description][level] = Tracker.from_dict(fetch_res)
 
     def plot_training_progress(self, dataset="Validation"):
-        self.plot(to_plot=((dataset, 'img_classification', 'accuracy')), plot_method="line")
+        self.plot(
+            to_plot=((dataset, "img_classification", "accuracy")), plot_method="line"
+        )
 
     def plot_noise_eval(self, std=True, bn_train=False, **kwargs):
         bn_train = " BN=Train" if bn_train else ""
         if std:
             to_plot = (
-                ("Noise noise_std 0.0_1.0"+bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.05_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.1_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.2_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.3_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.5_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 1.0_1.0" + bn_train, 'img_classification', 'accuracy'),
+                (
+                    "Noise noise_std 0.0_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.05_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.1_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.2_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.3_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.5_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 1.0_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
             )
         else:
             to_plot = (
-                ("Noise noise_std 0.0_1.0"+bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.05_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.1_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.2_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.3_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 0.5_1.0" + bn_train, 'img_classification', 'accuracy'),
-                ("Noise noise_std 1.0_1.0" + bn_train, 'img_classification', 'accuracy'),
+                (
+                    "Noise noise_std 0.0_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.05_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.1_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.2_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.3_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 0.5_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
+                (
+                    "Noise noise_std 1.0_1.0" + bn_train,
+                    "img_classification",
+                    "accuracy",
+                ),
             )
+
         def rename(name):
             number_idx = re.search(r"\d", name)
-            name = name[number_idx.start():]
+            name = name[number_idx.start() :]
             underscore_idx = name.find("_")
             name = name[:underscore_idx]
             return float(name)
+
         self.plot(to_plot, plot_method="bar", rename=rename, **kwargs)
 
+    def generate_table(
+        self,
+        objective=("Test", "img_classification", "accuracy"),
+        last_n=0,
+        label_steps=False,
+    ):
+        row_list = []
+        for desc, results in self.data.items():
+            if label_steps:
+                name_split = desc.name.split(" ")
+                name = " ".join(name_split[:-1])
+                labels = name_split[-1][1:-1].split(";")
+            else:
+                name, labels = (desc.name, None)
+            row = {"name": name}
+            levels = sorted(list(results.keys()))
+            if last_n:
+                levels = levels[(-1) * last_n :]
+            for level, tracker in results.items():
+                try:
+                    if level in levels:
+                        l = levels.index(level)
+                        if labels:
+                            l = labels[l]
+                        row[l] = tracker.get_current_objective(*objective)
+                except:
+                    pass  # no valid entry for this objective
+            row_list.append(row)
+        df = pd.DataFrame(row_list).groupby("name").first()
+        return df
+
+    def generate_normalized_table(self):
+        df = self.generate_table(last_n=2,label_steps=True)
+        for i, c in enumerate(df.columns):
+            offset = "A" if i % 2 == 0 else "B"
+            baseline = df.at[f"Direct Training {offset}", c]
+            df.insert(2 * i + 1, c + " normalized", df[c].divide(baseline).multiply(100))
+        return df
+
+    def plot_frontier(self, save="", style="lighttalk", legend_outside=True):
+        df = self.generate_table(last_n=2, label_steps=True)
+        columns = df.columns[1:]
+        fig, ax = plot_preparation(style, nrows=2, ncols=2)
+        for i, c in enumerate(columns):
+            if i % 2 == 1:
+                sns.scatterplot(
+                    data=df,
+                    x=columns[i - 1],
+                    y=c,
+                    hue="name",
+                    ax=ax[(i-1)//4][((i-1)%4)//2],
+                    legend="brief" if i==7 else False,
+                )
+
+        sns.despine(offset=10, trim=True)
+        plt.subplots_adjust(hspace=0.3)
+        if "talk" in style:
+            if legend_outside:
+                plt.legend(
+                    fontsize=14,
+                    title_fontsize="14",
+                    bbox_to_anchor=(1.05, 1),
+                    loc=2,
+                    borderaxespad=0.0,
+                )
+            else:
+                plt.legend(fontsize=14, title_fontsize="14")
+        elif legend_outside:
+            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+        if save:
+            save_plot(
+                fig,
+                save + "_" + style,
+                types=("png", "pdf", "pgf") if "nips" in style else ("png",),
+            )
 
     def plot(
         self,
@@ -123,7 +261,7 @@ class Analyzer:
         save="",
         style="lighttalk",
         legend_outside=True,
-        rename=lambda x: x
+        rename=lambda x: x,
     ):
         if not to_plot in ("c_test_eval", "c_test_loss"):
             fig, ax = plot_preparation(style)
