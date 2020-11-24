@@ -1,3 +1,4 @@
+import sys
 from functools import partial
 
 from tqdm import tqdm
@@ -142,6 +143,7 @@ class Trainer:
             total=len(data_cycler),
             desc="{} Epoch {}".format(mode, epoch),
             disable=self.config.show_epoch_progress,
+            file=sys.stdout,
         ) as t, torch.enable_grad() if train_mode else torch.no_grad():
             for module in self.main_loop_modules:
                 module.pre_epoch(self.model, mode, **module_options)
