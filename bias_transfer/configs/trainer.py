@@ -148,7 +148,7 @@ class RegressionTrainerConfig(TrainerConfig):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # self.threshold_mode = kwargs.pop("threshold_mode", "rel")
-        self.loss_functions = {"regression": "MSELoss"}
+        self.loss_functions = kwargs.pop("loss_functions", {"regression": "MSELoss"})
         self.maximize = False
         self.noise_test = {}
         self.apply_noise_to_validation = False

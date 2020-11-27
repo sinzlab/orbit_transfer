@@ -23,18 +23,18 @@ class RepresentationAnalyzer:
     ):
         self.experiment = experiment
         self.dataset = dataset
-        data_loaders, self.model, self.trainer = (
-                                                         table & experiment.get_restrictions()
-                                                 ).restore_saved_state(,,
-                                                 self.num_samples = -1
-        self.sample_loader = torch.utils.data.DataLoader(
-            data_loaders[dataset]["img_classification"].dataset,
-            sampler=data_loaders[dataset]["img_classification"].sampler,
-            batch_size=64,
-            shuffle=False,
-            num_workers=1,
-            pin_memory=False,
-        )
+        # data_loaders, self.model, self.trainer = (
+        #                                                  table & experiment.get_restrictions()
+        #                                          ).restore_saved_state(,,
+        #                                          self.num_samples = -1
+        # self.sample_loader = torch.utils.data.DataLoader(
+        #     data_loaders[dataset]["img_classification"].dataset,
+        #     sampler=data_loaders[dataset]["img_classification"].sampler,
+        #     batch_size=64,
+        #     shuffle=False,
+        #     num_workers=1,
+        #     pin_memory=False,
+        # )
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = self.model.to(self.device)
         self._reset_seed()

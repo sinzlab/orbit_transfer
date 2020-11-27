@@ -72,6 +72,7 @@ class BaseConfig(object):
                 self.to_dict(),
                 self.comment,
                 None,  # Fabrikant will automatically be set to current user
+                skip_duplicates=True  # we could still have duplicates
             )
 
     def save(self, save_directory):

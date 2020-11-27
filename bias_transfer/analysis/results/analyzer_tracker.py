@@ -1,17 +1,7 @@
-import math
 import re
-from functools import partial
-
-import torch
-import torch.backends.cudnn as cudnn
 
 from bias_transfer.analysis.utils import plot_preparation, save_plot
 from bias_transfer.tables.transfer import TransferredTrainedModel
-from bias_transfer.utils.io import load_checkpoint
-import numpy as np
-from matplotlib import cm
-from sklearn.cluster import AgglomerativeClustering
-from bias_transfer.tables.nnfabrik import *
 from mlutils.tracking import AdvancedMultipleObjectiveTracker as Tracker
 
 corruption_map = {
@@ -206,8 +196,11 @@ class Analyzer:
                 except:
                     pass  # no valid entry for this objective
             row_list.append(row)
-        df = pd.DataFrame(row_list).groupby("name").first()
-        return df
+        df = pd.DataFrame(row_list)
+        if df.empty:
+            return df
+        else:
+            return df.groupby("name").first()
 
     def generate_normalized_table(self):
         df = self.generate_table(last_n=2,label_steps=True)
@@ -262,6 +255,7 @@ class Analyzer:
         style="lighttalk",
         legend_outside=True,
         rename=lambda x: x,
+        level=0
     ):
         if not to_plot in ("c_test_eval", "c_test_loss"):
             fig, ax = plot_preparation(style)
@@ -311,8 +305,10 @@ class Analyzer:
         elif plot_method == "line":
             row_list = []
             for desc, tracker in self.data.items():
-                row = {"name": desc.name, to_plot[-1]: tracker.get_objective(*to_plot)}
-                row_list.append(row)
+                if len(tracker.keys()) > level:
+                    l = list(tracker.keys())[level]
+                    row = {"name": desc.name, to_plot[-1]: tracker[l].get_objective(*to_plot)}
+                    row_list.append(row)
             df = pd.DataFrame(row_list)
             df.index = df.name
             del df["name"]

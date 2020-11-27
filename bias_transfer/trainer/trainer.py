@@ -5,7 +5,6 @@ from tqdm import tqdm
 import torch
 from torch import optim, nn
 import nnfabrik as nnf
-from bias_transfer.utils.io import restore_saved_state
 from mlutils.training import copy_state
 
 from bias_transfer.models.utils import (

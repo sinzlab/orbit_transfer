@@ -7,8 +7,8 @@ from bias_transfer.trainer.utils.checkpointing import (
     LocalCheckpointing,
 )
 from bias_transfer.trainer.trainer import Trainer
-from bias_transfer.trainer.utils import get_subdict
-from bias_transfer.utils import stringify
+from bias_transfer.trainer.utils import get_subdict, stringify
+from bias_transfer.trainer.utils.loss import *
 from mlutils.tracking import AdvancedMultipleObjectiveTracker
 
 from torch import nn, optim
@@ -51,13 +51,11 @@ class ImgClassificationTrainer(Trainer):
         for k in self.task_keys:
             if k == "transfer":
                 continue  # no validation on this data and training is handled in mainloop modules
-            if self.config.loss_weighing:
-                pass
-                # self.criterion[k] = XEntropyLossWrapper(
-                #     getattr(nn, self.config.loss_functions[k])()
-                # ).to(self.device)
-            else:
-                criterion[k] = getattr(nn, self.config.loss_functions[k])()
+            criterion[k] = (
+                globals().get(self.config.loss_functions[k])
+                or getattr(nn, self.config.loss_functions[k])
+            )()
+
             stop_closure[k] = partial(
                 self.main_loop,
                 data_loader=get_subdict(self.data_loaders["validation"], [k]),
