@@ -197,33 +197,47 @@ class Analyzer:
                     pass  # no valid entry for this objective
             row_list.append(row)
         df = pd.DataFrame(row_list)
-        if df.empty:
-            return df
-        else:
-            return df.groupby("name").first()
+        if not df.empty:
+            df = df.groupby("name").first()
+            # Split off alpha from name
+            df = df.reset_index()
+            new = df["name"].str.split(":", n=1, expand=True)
+            df.drop(columns=["name"], inplace=True)
+            df["name"] = new[0]
+            df["alpha"] = new[1]
+            df = df.set_index("name")
+        return df
 
     def generate_normalized_table(self):
-        df = self.generate_table(last_n=2,label_steps=True)
+        df = self.generate_table(last_n=2, label_steps=True)
         for i, c in enumerate(df.columns):
             offset = "A" if i % 2 == 0 else "B"
             baseline = df.at[f"Direct Training {offset}", c]
-            df.insert(2 * i + 1, c + " normalized", df[c].divide(baseline).multiply(100))
+            df.insert(
+                2 * i + 1, c + " normalized", df[c].divide(baseline).multiply(100)
+            )
         return df
 
     def plot_frontier(self, save="", style="lighttalk", legend_outside=True):
         df = self.generate_table(last_n=2, label_steps=True)
-        columns = df.columns[1:]
-        fig, ax = plot_preparation(style, nrows=2, ncols=2)
-        for i, c in enumerate(columns):
+        direct_a = df.loc["Direct Training A"]
+        direct_b = df.loc["Direct Training B"]
+        fig, axs = plot_preparation(style, nrows=2, ncols=2)
+        for i, c in enumerate(df.columns):
             if i % 2 == 1:
-                sns.scatterplot(
+                ax = axs[(i - 1) // 4][((i - 1) % 4) // 2]
+                sns.lineplot(
                     data=df,
-                    x=columns[i - 1],
+                    x=df.columns[i - 1],
                     y=c,
                     hue="name",
-                    ax=ax[(i-1)//4][((i-1)%4)//2],
-                    legend="brief" if i==7 else False,
+                    ax=ax,
+                    legend="brief" if i == 7 else False,
+                    style="name",
+                    markers=True
                 )
+                ax.axhline(y=direct_b[c])
+                ax.axvline(x=direct_a[df.columns[i-1]])
 
         sns.despine(offset=10, trim=True)
         plt.subplots_adjust(hspace=0.3)
@@ -255,7 +269,7 @@ class Analyzer:
         style="lighttalk",
         legend_outside=True,
         rename=lambda x: x,
-        level=0
+        level=0,
     ):
         if not to_plot in ("c_test_eval", "c_test_loss"):
             fig, ax = plot_preparation(style)
@@ -307,7 +321,10 @@ class Analyzer:
             for desc, tracker in self.data.items():
                 if len(tracker.keys()) > level:
                     l = list(tracker.keys())[level]
-                    row = {"name": desc.name, to_plot[-1]: tracker[l].get_objective(*to_plot)}
+                    row = {
+                        "name": desc.name,
+                        to_plot[-1]: tracker[l].get_objective(*to_plot),
+                    }
                     row_list.append(row)
             df = pd.DataFrame(row_list)
             df.index = df.name
