@@ -65,7 +65,7 @@ class ImageDatasetConfig(DatasetConfig):
                     "dataset_sub_cls", "MNIST"
                 )  # could be e.g. FashionMNIST
                 self.input_size = 40 if self.bias != "addition" else 80
-                if self.bias == "color" or self.bias == "color_shuffle":
+                if "color" in self.bias:
                     self.train_data_mean = (
                         (0.03685451, 0.0367535, 0.03952756)
                         if self.dataset_sub_cls == "MNIST"
@@ -87,7 +87,7 @@ class ImageDatasetConfig(DatasetConfig):
                         if self.dataset_sub_cls == "MNIST"
                         else (0.28845804,)
                     )
-                elif self.bias == "rotation" or self.bias == "rotation_regression":
+                elif "rotation" in self.bias:
                     self.train_data_mean = (
                         (0.0640235,)
                         if self.dataset_sub_cls == "MNIST"

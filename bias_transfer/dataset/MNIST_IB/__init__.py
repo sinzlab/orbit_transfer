@@ -14,6 +14,7 @@ from .noise import apply_gaussian_noise
 from .color import apply_color, get_color_codes
 from .translation import apply_translation
 from .rotation import apply_rotation
+from .shuffle import apply_label_shuffle
 
 
 def generate_dataset(data_loader, transform_fs=(), options=()):
@@ -44,6 +45,16 @@ bias_dict = {
             "color_variance": 0.02,
         },
     ),
+    "color_easy": (
+        apply_color,
+        {
+            "cfg_means": get_color_codes(),
+            "cbg_means": get_color_codes(),
+            "bg": False,
+            "fg": True,
+            "color_variance": 0.00,
+        },
+    ),
     "color_shuffle": (
         apply_color,
         {
@@ -52,7 +63,7 @@ bias_dict = {
             "bg": False,
             "fg": True,
             "color_variance": 0.02,
-            "shuffle": True
+            "shuffle": True,
         },
     ),
     "noise": (apply_gaussian_noise, {"severity": -1}),  # random
@@ -61,6 +72,7 @@ bias_dict = {
     "rotation_regression": (apply_rotation, {"regression": True}),
     "addition": (apply_additon, {}),
     "expansion": (None, {}),
+    "clean_shuffle": (apply_label_shuffle, {}),
 }
 
 
@@ -89,8 +101,12 @@ def generate_and_save(
     test = globals().get(dataset)(
         root=base_path, train=False, download=True, transform=transform,
     )
-    train_loader = torch.utils.data.DataLoader(train, batch_size=64, shuffle=False,)
-    test_loader = torch.utils.data.DataLoader(test, batch_size=64, shuffle=False,)
+    train_loader = torch.utils.data.DataLoader(
+        train, batch_size=64, shuffle=False,
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test, batch_size=64, shuffle=False,
+    )
     train_ds = generate_dataset(
         data_loader=train_loader,
         transform_fs=(apply_expansion, apply_bias),
