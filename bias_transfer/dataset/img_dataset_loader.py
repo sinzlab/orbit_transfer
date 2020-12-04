@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data.dataset import ChainDataset, ConcatDataset
+from torch.utils.data.dataset import ChainDataset, ConcatDataset, Subset
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets
 from bias_transfer.configs.dataset import ImageDatasetConfig
@@ -370,8 +370,14 @@ def get_data_loaders(
         if config.train_subset:
             subset_split = int(np.floor(config.train_subset * len(train_idx)))
             train_idx = train_idx[:subset_split]
-        train_sampler = SubsetRandomSampler(train_idx)
-        valid_sampler = SubsetRandomSampler(valid_idx)
+        if config.shuffle:
+            train_sampler = SubsetRandomSampler(train_idx)
+            valid_sampler = SubsetRandomSampler(valid_idx)
+        else:
+            train_dataset = Subset(train_dataset, train_idx)
+            valid_dataset = Subset(train_dataset, valid_idx)
+            train_sampler = None
+            valid_sampler = None
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=config.batch_size,
