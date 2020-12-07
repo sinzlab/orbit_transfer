@@ -45,7 +45,8 @@ class PseudoTrainer(Trainer):
             ).numpy()
         if self.config.save_input:
             collected_inputs = []
-            for src, _ in self.data_loaders[data]["img_classification"]:
+            data_loader = next(iter(self.data_loaders[data].values()))
+            for src, _ in data_loader:
                 collected_inputs.append(src)
             outputs["source"] = torch.cat(collected_inputs).numpy()
         return outputs
