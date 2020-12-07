@@ -28,3 +28,9 @@ class MainLoopModule(object):
 
     def post_backward(self, model):
         pass
+
+    def post_optimizer(self, model):
+        pass
+
+    def post_epoch(self, model):
+        pass

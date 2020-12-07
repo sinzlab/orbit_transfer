@@ -4,7 +4,9 @@ from .random_readout_reset import RandomReadoutReset
 from .representation_matching import RepresentationMatching
 from .lottery_ticket_pruning import LotteryTicketPruning
 from .model_wrapper import ModelWrapper
-from .parameter_regularization.l2_sp import L2SP
+from .synaptic_intelligence import SynapticIntelligence
+from .fisher_estimation import FisherEstimation
+from .parameter_regularization.param_distance import ParamDistance
 from .parameter_regularization.mixup import Mixup
 from .representation_regularization.rdl import RDL
 from .representation_regularization.knowledge_distillation import KnowledgeDistillation

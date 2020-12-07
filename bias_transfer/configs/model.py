@@ -86,6 +86,7 @@ class ClassificationModelConfig(ModelConfig):
         self.pretrained = kwargs.pop("pretrained", False)
         self.pretrained_path = kwargs.pop("pretrained_url", "")
         self.readout_type = kwargs.pop("readout_type", "dense")
+        self.add_buffer = kwargs.pop("add_buffer", ())
 
 
 class NeuralModelConfig(ModelConfig):

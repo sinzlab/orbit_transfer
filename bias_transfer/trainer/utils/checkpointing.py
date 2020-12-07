@@ -24,9 +24,10 @@ class Checkpointing:
 class RemoteCheckpointing(Checkpointing):
     def save(self, epoch, score, patience_counter):
         state = {
+            "action": "save",
             "score": score,
             "maximize_score": self.maximize_score,
-            "tracker": self.tracker,
+            "tracker": self.tracker.state_dict(),
             "patience_counter": patience_counter,
             **self.chkpt_options,
         }
@@ -36,12 +37,13 @@ class RemoteCheckpointing(Checkpointing):
             epoch=epoch, model=self.model, state=state,
         )  # save model
 
-    def restore(self, restore_only_state=False):
+    def restore(self, restore_only_state=False, action="last"):
         loaded_state = {
-            "state": { "maximize_score": self.maximize_score,}
+            "maximize_score": self.maximize_score,
+            "action": action,
         }
         if not restore_only_state:
-            loaded_state["state"]["tracker"] = self.tracker
+            loaded_state["tracker"] = self.tracker
             if self.scheduler is not None:
                 loaded_state["scheduler"] = self.scheduler
         self.call_back(

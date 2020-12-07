@@ -104,6 +104,14 @@ def classification_cnn_builder(data_loader, seed: int, **config):
             sigmoid_output=config.noise_sigmoid_output,
         )
     print("Model with {} parameters.".format(get_model_parameters(model)))
+    if config.add_buffer:
+        for n, p in model.named_parameters():
+            if p.requires_grad:
+                n = n.replace(".", "__")
+                for b in config.add_buffer:
+                    model.register_buffer(
+                        f"{n}_{b}", p.detach().clone().zero_(),
+                    )
     return model
 
 

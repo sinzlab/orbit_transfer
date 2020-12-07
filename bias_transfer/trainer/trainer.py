@@ -124,13 +124,20 @@ class Trainer:
         if mode == "Training":
             train_mode = True
             batch_norm_train_mode = not self.config.freeze_bn
+            record_grad = True
         elif "BN" in mode:
             train_mode = False
             batch_norm_train_mode = True
             reset_state_dict = copy_state(self.model)
+            record_grad = False
+        elif mode == "Generation":
+            train_mode = False
+            batch_norm_train_mode = False
+            record_grad = True
         else:
             train_mode = False
             batch_norm_train_mode = False
+            record_grad = False
         module_options = {} if module_options is None else module_options
         self.model.train() if train_mode else self.model.eval()
         self.model.apply(partial(set_bn_to_eval, train_mode=batch_norm_train_mode))
@@ -143,7 +150,7 @@ class Trainer:
             desc="{} Epoch {}".format(mode, epoch),
             disable=self.config.show_epoch_progress,
             file=sys.stdout,
-        ) as t, torch.enable_grad() if train_mode else torch.no_grad():
+        ) as t, torch.enable_grad() if train_mode or record_grad else torch.no_grad():
             for module in self.main_loop_modules:
                 module.pre_epoch(self.model, mode, **module_options)
             if train_mode:
@@ -185,7 +192,13 @@ class Trainer:
                         or (batch_idx + 1) % self.config.optim_step_count == 0
                     ):
                         self.optimizer.step()
+                        for module in self.main_loop_modules:
+                            module.post_optimizer(self.model)
                         self.optimizer.zero_grad()
+
+            for module in self.main_loop_modules:
+                module.post_epoch(self.model)
+
         if reset_state_dict:
             load_state_dict(
                 self.model,

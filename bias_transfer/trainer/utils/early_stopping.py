@@ -31,7 +31,7 @@ def early_stopping(
 
     def decay_lr():
         if restore_best:
-            restored_epoch, _ = checkpointing.restore(restore_only_state=True)
+            restored_epoch, _ = checkpointing.restore(restore_only_state=True, action="best")
             print(
                 "Restoring best model from epoch {} after lr-decay!".format(
                     restored_epoch
@@ -40,7 +40,7 @@ def early_stopping(
 
     def finalize():
         if restore_best:
-            restored_epoch, _ = checkpointing.restore(restore_only_state=True)
+            restored_epoch, _ = checkpointing.restore(restore_only_state=True, action="best")
             print("Restoring best model from epoch! {}".format(restored_epoch))
         else:
             print("Final best model! objective {}".format(best_objective))
@@ -49,7 +49,7 @@ def early_stopping(
     objective_closure = StopClosureWrapper(objective_closure)
 
     # Try loading saved checkpoint:
-    epoch, patience_counter = checkpointing.restore()
+    epoch, patience_counter = checkpointing.restore(action="last")
     # turn into a sign
     maximize = -1 if maximize else 1
     best_objective = current_objective = _objective()

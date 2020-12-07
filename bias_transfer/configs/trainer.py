@@ -98,6 +98,7 @@ class TrainerConfig(BaseConfig):
         self.noise_adv_gamma = kwargs.pop("noise_adv_gamma", 10.0)
         self.representation_matching = kwargs.pop("representation_matching", None)
         # transfer
+        self.synaptic_intelligence_computation = kwargs.pop("synaptic_intelligence_computation", False)
         self.freeze = kwargs.pop("freeze", None)
         self.freeze_bn = kwargs.pop("freeze_bn", False)
         self.transfer_restriction = kwargs.pop("transfer_restriction", [])
@@ -133,6 +134,8 @@ class TrainerConfig(BaseConfig):
             modules.append("RandomReadoutReset")
         if self.lottery_ticket:
             modules.append("LotteryTicketPruning")
+        if self.synaptic_intelligence_computation:
+            modules.append("SynapticIntelligence")
         if self.regularization:
             modules.append(self.regularization["regularizer"])
         modules.append("ModelWrapper")
@@ -164,6 +167,9 @@ class TransferTrainerConfig(TrainerConfig):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.save_input = kwargs.pop("save_input", False)
+        self.save_representation = kwargs.pop("save_representation", False)
+        self.compute_fisher = kwargs.pop("compute_fisher", {})
+        self.compute_si_omega = kwargs.pop("compute_si_omega", {})
 
 
 class TransferTrainerRegressionConfig(RegressionTrainerConfig):
@@ -175,3 +181,6 @@ class TransferTrainerRegressionConfig(RegressionTrainerConfig):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.save_input = kwargs.pop("save_input", False)
+        self.save_representation = kwargs.pop("save_representation", False)
+        self.compute_fisher = kwargs.pop("compute_fisher", {})
+        self.compute_si_omega = kwargs.pop("compute_si_omega", {})
