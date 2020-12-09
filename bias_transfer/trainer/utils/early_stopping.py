@@ -31,7 +31,9 @@ def early_stopping(
 
     def decay_lr():
         if restore_best:
-            restored_epoch, _ = checkpointing.restore(restore_only_state=True, action="best")
+            restored_epoch, _ = checkpointing.restore(
+                restore_only_state=True, action="best"
+            )
             print(
                 "Restoring best model from epoch {} after lr-decay!".format(
                     restored_epoch
@@ -40,7 +42,9 @@ def early_stopping(
 
     def finalize():
         if restore_best:
-            restored_epoch, _ = checkpointing.restore(restore_only_state=True, action="best")
+            restored_epoch, _ = checkpointing.restore(
+                restore_only_state=True, action="best"
+            )
             print("Restoring best model from epoch! {}".format(restored_epoch))
         else:
             print("Final best model! objective {}".format(best_objective))
@@ -54,15 +58,8 @@ def early_stopping(
     maximize = -1 if maximize else 1
     best_objective = current_objective = _objective()
 
-    if scheduler is not None:
-        if (
-            config.scheduler == "adaptive"
-        ):  # only works sofar with one task but not with MTL
-            scheduler.step(
-                list(current_objective.values())[0][
-                    "eval" if config.maximize else "loss"
-                ]
-            )
+    if scheduler is not None and config.scheduler == "adaptive":
+        scheduler.step(current_objective)
 
     for repeat in range(lr_decay_steps):
         while patience_counter < patience and epoch < max_iter:
@@ -82,7 +79,7 @@ def early_stopping(
             # if a scheduler is defined, a .step with the current objective is all that is needed to reduce the LR
             if scheduler is not None:
                 if (config.scheduler == "adaptive") and (
-                    not config.scheduler_options["mtl"]
+                    not config.scheduler_options.get("mtl")
                 ):  # only works sofar with one task but not with MTL
                     # scheduler.step(list(current_objective.values())[0]['eval' if config.maximize else 'loss'])
                     scheduler.step(current_objective)
@@ -128,7 +125,7 @@ def early_stopping(
 
         if (epoch < max_iter) & (lr_decay_steps > 1) & (repeat < lr_decay_steps):
             if (config.scheduler == "adaptive") and (
-                config.scheduler_options["mtl"]
+                config.scheduler_options.get("mtl")
             ):  # adaptive lr scheduling for mtl alongside early_stopping
                 scheduler.step()
             decay_lr()

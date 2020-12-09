@@ -79,22 +79,16 @@ class Trainer:
         lr_scheduler = None
         if self.config.scheduler is not None:
             if self.config.scheduler == "adaptive":
-                if self.config.scheduler_options["mtl"]:
-                    pass
-                    # self.lr_scheduler = optim.lr_scheduler.StepLR(
-                    #     self.optimizer, step_size=1, gamma=self.config.lr_decay
-                    # )
-                elif not self.config.scheduler_options["mtl"]:
-                    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                        self.optimizer,
-                        factor=self.config.lr_decay,
-                        patience=self.config.patience,
-                        threshold=self.config.threshold,
-                        verbose=self.config.verbose,
-                        min_lr=self.config.min_lr,
-                        mode="max" if self.config.maximize else "min",
-                        threshold_mode=self.config.threshold_mode,
-                    )
+                lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                    self.optimizer,
+                    factor=self.config.lr_decay,
+                    patience=self.config.patience,
+                    threshold=self.config.threshold,
+                    verbose=self.config.verbose,
+                    min_lr=self.config.min_lr,
+                    mode="max" if self.config.maximize else "min",
+                    threshold_mode=self.config.threshold_mode,
+                )
             elif self.config.scheduler == "manual":
                 lr_scheduler = optim.lr_scheduler.MultiStepLR(
                     self.optimizer,

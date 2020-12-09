@@ -120,7 +120,7 @@ def get_transforms(config):
             if config.apply_normalization
             else None,
         ]
-        transform_test = [
+        transform_test = [  #TODO: we don't need resizing + cropping for IN-C!
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.Grayscale() if config.apply_grayscale else None,
