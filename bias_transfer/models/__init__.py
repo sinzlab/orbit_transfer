@@ -1,7 +1,11 @@
 import torch
 import numpy as np
 
-from bias_transfer.configs.model import ClassificationModelConfig, MTLModelConfig, RegressionModelConfig
+from bias_transfer.configs.model import (
+    ClassificationModelConfig,
+    MTLModelConfig,
+    RegressionModelConfig,
+)
 from bias_transfer.models.resnet import resnet_builder
 from bias_transfer.models.wrappers.noise_adv import NoiseAdvWrapper
 from bias_transfer.models.utils import get_model_parameters
@@ -11,6 +15,7 @@ from torch.hub import load_state_dict_from_url
 from nnfabrik.utility.nn_helpers import load_state_dict
 from nnvision.models.models import se_core_gauss_readout, se_core_point_readout
 from .lenet import lenet_builder
+from .lenet_bayesian import lenet_builder as bayes_builder
 from .mlp import MLP
 from .wrappers import *
 
@@ -69,7 +74,10 @@ def classification_cnn_builder(data_loader, seed: int, **config):
         model = resnet_builder(seed, config)
         from torchvision.models.resnet import model_urls
     elif "lenet" in config.type:
-        model = lenet_builder(seed, config)
+        if "bayes" in config.type:
+            model = bayes_builder(seed, config)
+        else:
+            model = lenet_builder(seed, config)
     else:
         raise Exception("Unknown type {}".format(config.type))
 

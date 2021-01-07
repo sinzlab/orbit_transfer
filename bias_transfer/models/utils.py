@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from torchvision.models.resnet import Bottleneck, BasicBlock
 from bias_transfer.models.resnet import ResNet
@@ -88,3 +89,10 @@ def set_bn_to_eval(m, train_mode=False):
     classname = m.__class__.__name__
     if "BatchNorm" in classname:
         m.train(train_mode)
+
+
+def concatenate_flattened(tensor_list) -> torch.Tensor:
+       """
+       Given list of tensors, flattens each and concatenates their values.
+       """
+       return torch.cat([torch.reshape(t, (-1,)) for t in tensor_list])

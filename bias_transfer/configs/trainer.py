@@ -98,7 +98,9 @@ class TrainerConfig(BaseConfig):
         self.noise_adv_gamma = kwargs.pop("noise_adv_gamma", 10.0)
         self.representation_matching = kwargs.pop("representation_matching", None)
         # transfer
-        self.synaptic_intelligence_computation = kwargs.pop("synaptic_intelligence_computation", False)
+        self.synaptic_intelligence_computation = kwargs.pop(
+            "synaptic_intelligence_computation", False
+        )
         self.freeze = kwargs.pop("freeze", None)
         self.freeze_bn = kwargs.pop("freeze_bn", False)
         self.transfer_restriction = kwargs.pop("transfer_restriction", [])
@@ -118,6 +120,7 @@ class TrainerConfig(BaseConfig):
                 "rounds", 1
             ) * self.lottery_ticket.get("round_length", 100)
         self.show_epoch_progress = kwargs.pop("show_epoch_progress", False)
+        self.data_transfer = kwargs.pop("data_transfer", False)
 
     @property
     def main_loop_modules(self):
@@ -166,10 +169,13 @@ class TransferTrainerConfig(TrainerConfig):
     @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.data_transfer = True
         self.save_input = kwargs.pop("save_input", False)
         self.save_representation = kwargs.pop("save_representation", False)
         self.compute_fisher = kwargs.pop("compute_fisher", {})
         self.compute_si_omega = kwargs.pop("compute_si_omega", {})
+        self.extract_coreset = kwargs.pop("extract_coreset", {})
+        self.reset_for_new_task = kwargs.pop("reset_for_new_task", False)
 
 
 class TransferTrainerRegressionConfig(RegressionTrainerConfig):
@@ -180,7 +186,10 @@ class TransferTrainerRegressionConfig(RegressionTrainerConfig):
     @baseline
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.data_transfer = True
         self.save_input = kwargs.pop("save_input", False)
         self.save_representation = kwargs.pop("save_representation", False)
         self.compute_fisher = kwargs.pop("compute_fisher", {})
         self.compute_si_omega = kwargs.pop("compute_si_omega", {})
+        self.extract_coreset = kwargs.pop("extract_coreset", {})
+        self.reset_for_new_task = kwargs.pop("reset_for_new_task", False)

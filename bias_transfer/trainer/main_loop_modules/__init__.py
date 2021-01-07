@@ -8,5 +8,6 @@ from .synaptic_intelligence import SynapticIntelligence
 from .fisher_estimation import FisherEstimation
 from .parameter_regularization.param_distance import ParamDistance
 from .parameter_regularization.mixup import Mixup
+from .parameter_regularization.vcl import VCL
 from .representation_regularization.rdl import RDL
 from .representation_regularization.knowledge_distillation import KnowledgeDistillation

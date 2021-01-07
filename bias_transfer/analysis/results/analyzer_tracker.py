@@ -218,11 +218,28 @@ class Analyzer:
             )
         return df
 
+    def name_map(self, old_name, prefix=""):
+        name = old_name.replace("->", " → ")
+        name = name.replace("_", " ")
+        name = " ".join([n.capitalize() for n in name.split()])
+        # m = {
+        #     "color_shuffle": "Color (Shuffled)",
+        #     "clean->color": "Color",
+        #     "noise": "Noise",
+        #     "noise->clean": "Clean",
+        #     "translation": "Translation",
+        #     "translation->clean": "Clean",
+        #     "rotation": "Rotation",
+        #     "rotation_regression->clean": "Clean",
+        # }
+        return prefix + name
+
     def plot_frontier(self, save="", style="lighttalk", legend_outside=True):
         df = self.generate_table(last_n=2, label_steps=True)
         direct_a = df.loc["Direct Training A"]
         direct_b = df.loc["Direct Training B"]
         fig, axs = plot_preparation(style, nrows=2, ncols=2)
+        max_x, min_x, max_y, min_y = 0, 100, 0, 100
         for i, c in enumerate(df.columns):
             if i % 2 == 1:
                 ax = axs[(i - 1) // 4][((i - 1) % 4) // 2]
@@ -234,13 +251,25 @@ class Analyzer:
                     ax=ax,
                     legend="brief" if i == 7 else False,
                     style="name",
-                    markers=True
+                    markers=True,
                 )
-                ax.axhline(y=direct_b[c])
-                ax.axvline(x=direct_a[df.columns[i-1]])
+                ax.axhline(y=direct_b[c], lw=0.7, color="brown")
+                ax.axvline(x=direct_a[df.columns[i - 1]], lw=0.8, color="red")
+                min_x = min(min_x, ax.get_xlim()[0])
+                min_y = min(min_y, ax.get_ylim()[0])
+                max_x = max(max_x, ax.get_xlim()[1])
+                max_y = max(max_y, ax.get_ylim()[1])
+                ax.set_title(self.name_map(ax.get_xlabel()), fontweight="bold")
+                ax.set_xlabel(self.name_map(ax.get_xlabel().split("->")[1], "A: "))
+                ax.set_ylabel(self.name_map(ax.get_ylabel(), "B: "))
 
-        sns.despine(offset=10, trim=True)
-        plt.subplots_adjust(hspace=0.3)
+        for i in range(len(axs)):
+            for j in range(len(axs[i])):
+                # axs[i][j].set_xlim([min_x,max_x])
+                axs[i][j].set_ylim([min_y, max_y])
+
+        sns.despine(offset=5, trim=False)
+        plt.subplots_adjust(hspace=0.4)
         if "talk" in style:
             if legend_outside:
                 plt.legend(
@@ -321,11 +350,15 @@ class Analyzer:
             for desc, tracker in self.data.items():
                 if len(tracker.keys()) > level:
                     l = list(tracker.keys())[level]
-                    row = {
-                        "name": desc.name,
-                        to_plot[-1]: tracker[l].get_objective(*to_plot),
-                    }
-                    row_list.append(row)
+                    try:
+                        row = {
+                            "name": desc.name,
+                            to_plot[-1]: tracker[l].get_objective(*to_plot),
+                        }
+                        row_list.append(row)
+                        print(desc.name, row)
+                    except:
+                        print("skipping", desc.name)
             df = pd.DataFrame(row_list)
             df.index = df.name
             del df["name"]

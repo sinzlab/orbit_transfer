@@ -68,7 +68,7 @@ def plot_preparation(
     nrows=1,
     ncols=1,
     ratio=None,
-        fraction=1.0,
+    fraction=1.0,
     sharex=False,
     sharey=False,
     gridspec_kw=None,

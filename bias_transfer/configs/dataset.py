@@ -271,4 +271,9 @@ class TransferredDatasetConfig(ImageDatasetConfig):
     table = Dataset()
     fn = "bias_transfer.dataset.transferred_dataset_loader"
 
-    pass
+    @baseline
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.train_on_reduced_data = kwargs.pop("train_on_reduced_data", False)
+        self.train_on_coreset = kwargs.pop("train_on_coreset", False)
+        self.load_coreset = kwargs.pop("load_coreset", False)

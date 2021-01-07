@@ -21,15 +21,30 @@ class PseudoTrainer(Trainer):
         self.tracker.start_epoch()
         if hasattr(tqdm, "_instances"):
             tqdm._instances.clear()
+
         if self.config.save_representation:
             train = self.generate_rep_dataset(data="train")
+        elif self.config.extract_coreset:
+            train = self.extract_coreset(
+                data="train",
+                method=self.config.extract_coreset.get("method"),
+                size=self.config.extract_coreset.get("size"),
+            )
+            if "img_classification_cs" in self.data_loaders["train"]:  # update coreset
+                cs = self.data_loaders["train"]["img_classification_cs"].dataset
+                train["source_cs"] = np.concatenate([train["source_cs"], cs.samples])
+                train["target_cs"] = np.concatenate([train["target_cs"], cs.targets])
         else:
             train = None
+
         if self.config.compute_fisher:
             self.estimate_fisher(data="train")
         elif self.config.compute_si_omega:
             self.compute_omega()
-        return train, self.model.state_dict()
+
+        if self.config.reset_for_new_task:
+            self.model.reset_for_new_task()
+        return 0.0, {}, self.model.state_dict(), train
 
     def generate_rep_dataset(self, data):
         _, collected_outputs = self.main_loop(
@@ -49,6 +64,58 @@ class PseudoTrainer(Trainer):
             for src, _ in data_loader:
                 collected_inputs.append(src)
             outputs["source"] = torch.cat(collected_inputs).numpy()
+        return outputs
+
+    def extract_coreset(self, data, method, size):
+        print(method)
+        indices = list(
+            range(len(self.data_loaders[data]["img_classification"].dataset))
+        )
+        if method == "random":
+            np.random.seed(self.seed)
+            np.random.shuffle(indices)
+            coreset_idx, remain_idx = indices[:size], indices[size:]
+        elif method == "k-center":
+            try:
+                dataset = self.data_loaders[data][
+                    "img_classification"
+                ].dataset.data.numpy()
+            except:
+                dataset = self.data_loaders[data][
+                    "img_classification"
+                ].dataset.dataset.samples.numpy()
+
+            def update_distance(dists, x_train, current_id):
+                for i in range(x_train.shape[0]):
+                    current_dist = np.linalg.norm(
+                        x_train[i, :] - x_train[current_id, :]
+                    )
+                    dists[i] = np.minimum(current_dist, dists[i])
+                return dists
+
+            dists = np.full(dataset.shape[0], np.inf)
+            current_id = 0
+            coreset_idx = []
+            remain_idx = indices
+            for _ in range(size):
+                dists = update_distance(dists, dataset, current_id)
+                coreset_idx.append(current_id)
+                remain_idx.remove(current_id)
+                current_id = np.argmax(dists)
+        collected_inputs = []
+        collected_labels = []
+        data_loader = next(iter(self.data_loaders[data].values()))
+        for src, trg in data_loader:
+            collected_inputs.append(src)
+            collected_labels.append(trg)
+        inputs = torch.cat(collected_inputs).numpy()
+        labels = torch.cat(collected_labels).numpy()
+        outputs = {
+            "source": inputs[remain_idx],
+            "source_cs": inputs[coreset_idx],
+            "target": labels[remain_idx],
+            "target_cs": labels[coreset_idx],
+        }
         return outputs
 
     def estimate_fisher(self, data):

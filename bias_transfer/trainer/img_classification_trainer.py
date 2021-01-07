@@ -49,7 +49,7 @@ class ImgClassificationTrainer(Trainer):
     def get_training_controls(self):
         criterion, stop_closure = {}, {}
         for k in self.task_keys:
-            if k == "transfer":
+            if k == "transfer" or k not in self.config.loss_functions:
                 continue  # no validation on this data and training is handled in mainloop modules
             criterion[k] = (
                 globals().get(self.config.loss_functions[k])
@@ -92,7 +92,7 @@ class ImgClassificationTrainer(Trainer):
     def compute_loss(
         self, mode, task_key, loss, outputs, targets,
     ):
-        if task_key != "transfer":
+        if task_key != "transfer" and task_key in self.config.loss_functions:
             if (
                 not self.config.regularization.get("regularizer") == "Mixup"
             ):  # otherwise this is done in the mainloop-module
