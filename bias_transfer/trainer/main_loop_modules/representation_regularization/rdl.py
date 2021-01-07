@@ -2,6 +2,7 @@ from torch import nn
 import torch
 
 from . import RepresentationRegularization
+from ...utils import arctanh
 
 
 class RDL(RepresentationRegularization):
@@ -77,10 +78,6 @@ class RDL(RepresentationRegularization):
         return dist
 
     @staticmethod
-    def arctanh(x):
-        return 0.5 * torch.log((1 + x) / (1 - x))
-
-    @staticmethod
     def compute_rdm(x, dist_measure="corr"):
         x_flat = x.flatten(1, -1)
         centered = x_flat - x_flat.mean(dim=0).view(
@@ -101,8 +98,8 @@ class RDL(RepresentationRegularization):
         rdm_x = rdm_x.triu(diagonal=1)
         rdm_y = rdm_y.triu(diagonal=1)
         if use_arctanh:
-            rdm_x = RDL.arctanh(rdm_x)
-            rdm_y = RDL.arctanh(rdm_y)
+            rdm_x = arctanh(rdm_x)
+            rdm_y = arctanh(rdm_y)
         return criterion(rdm_x, rdm_y)
 
     def __init__(self, trainer):

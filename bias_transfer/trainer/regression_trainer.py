@@ -1,6 +1,6 @@
 from bias_transfer.trainer.utils.checkpointing import LocalCheckpointing, RemoteCheckpointing
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
-from bias_transfer.trainer.utils import get_subdict
+from bias_transfer.trainer.utils import get_subdict, arctanh
 from mlutils.tracking import AdvancedMultipleObjectiveTracker
 
 
@@ -33,7 +33,11 @@ class RegressionTrainer(ImgClassificationTrainer):
     def compute_loss(
         self, mode, task_key, loss, outputs, targets,
     ):
-        loss += self.criterion["regression"](outputs.reshape((-1,)), targets)
+        reg_loss = self.criterion["regression"](outputs.reshape((-1,)), targets)
+        if self.config.scale_loss_with_arctanh:
+            reg_loss = arctanh(reg_loss)
+
+        loss += reg_loss
         _, predicted = outputs.max(1)
         batch_size = targets.size(0)
         self.tracker.log_objective(

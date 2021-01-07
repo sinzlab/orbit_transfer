@@ -121,6 +121,9 @@ class TrainerConfig(BaseConfig):
             ) * self.lottery_ticket.get("round_length", 100)
         self.show_epoch_progress = kwargs.pop("show_epoch_progress", False)
         self.data_transfer = kwargs.pop("data_transfer", False)
+        self.scale_loss_with_arctanh = kwargs.pop(
+            "scale_loss_with_arctanh", False
+        )
 
     @property
     def main_loop_modules(self):
