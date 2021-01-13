@@ -24,16 +24,17 @@ def transferred_dataset_loader(seed, primary_dataset_fn=img_dataset_loader, **co
     transfer_data = {k: transfer_data_file[k] for k in transfer_data_file.files}
 
     data_loaders = primary_dataset_fn(seed, **config)
-    main_data_loader = data_loaders["train"]["img_classification"]
+    main_task = next(iter(data_loaders["train"].keys()))
+    main_data_loader = data_loaders["train"][main_task]
     main_dataset = main_data_loader.dataset
     if "source_cs" in transfer_data:  # we have a coreset
         if config.get("train_on_coreset"):
-            load_npy("_cs", "img_classification", transfer_data, data_loaders, main_data_loader)
+            load_npy("_cs", main_task, transfer_data, data_loaders, main_data_loader)
         else:
             if config.get("train_on_reduced_data"):
-                load_npy("", "img_classification", transfer_data, data_loaders, main_data_loader)
+                load_npy("", main_task, transfer_data, data_loaders, main_data_loader)
             if config.get("load_coreset"):
-                load_npy("_cs", "img_classification_cs", transfer_data, data_loaders, main_data_loader)
+                load_npy("_cs", f"{main_task}_cs", transfer_data, data_loaders, main_data_loader)
     else:
         datasets = {}
         for rep_name, rep_data in transfer_data.items():
@@ -65,5 +66,5 @@ def transferred_dataset_loader(seed, primary_dataset_fn=img_dataset_loader, **co
                 pin_memory=main_data_loader.pin_memory,
                 shuffle=False,
             )
-            data_loaders["train"]["img_classification"] = combined_data_loader
+            data_loaders["train"][main_task] = combined_data_loader
     return data_loaders

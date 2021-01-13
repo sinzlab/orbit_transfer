@@ -77,7 +77,7 @@ class Trainer:
 
     def prepare_lr_schedule(self):
         lr_scheduler = None
-        if self.config.scheduler is not None:
+        if self.config.scheduler:
             if self.config.scheduler == "adaptive":
                 lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                     self.optimizer,
@@ -92,7 +92,7 @@ class Trainer:
             elif self.config.scheduler == "manual":
                 lr_scheduler = optim.lr_scheduler.MultiStepLR(
                     self.optimizer,
-                    milestones=self.config.scheduler_options["milestones"],
+                    milestones=self.config.lr_milestones,
                     gamma=self.config.lr_decay,
                 )
         if self.config.lr_warmup:
@@ -234,8 +234,8 @@ class Trainer:
         if self.config.lottery_ticket or epoch == 0:
             for module in self.main_loop_modules:
                 module.pre_epoch(self.model, "Training")
-        if self.config.transfer_after_train and self.config.transfer_from_path:
-            self.transfer_model()
+        # if self.config.transfer_after_train and self.config.transfer_from_path:
+        #     self.transfer_model()
 
         test_result = self.test_final_model(epoch)
         return (

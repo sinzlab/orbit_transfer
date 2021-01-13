@@ -1,4 +1,5 @@
 import copy
+from typing import List
 
 from nnfabrik.utility.dj_helpers import make_hash
 
@@ -13,13 +14,18 @@ class TransferExperiment(Experiment):
     table = None
     fn = None
 
-    def __init__(self, configs):
+    def __init__(self, configs, update: List = []):
         self.configs = configs
         comment = []
         for c in self.configs:
             comment.append(c.comment)
             c.comment = " -> ".join(comment)
         self.comment = " -> ".join(comment)
+        self.update(update)
+
+    def update(self, settings: List):
+        for i, setting in enumerate(settings):
+            self.configs[i].update(setting)
 
     def get_restrictions(self, level: int = 0):
         if len(self.configs) <= level:
@@ -33,10 +39,12 @@ class TransferExperiment(Experiment):
             "prev_trainer_hash": "",
             "collapsed_history": "",
         }
-        for i, config in enumerate(self.configs[:level+1]):
+        for i, config in enumerate(self.configs[: level + 1]):
             if i > 0:
                 key_for_hash = copy.deepcopy(prev_key)
-                key_for_hash["prev_collapsed_history"] = key_for_hash["collapsed_history"]
+                key_for_hash["prev_collapsed_history"] = key_for_hash[
+                    "collapsed_history"
+                ]
                 del key_for_hash["collapsed_history"]
                 collapsed_history = make_hash(key_for_hash)
                 prev_key = {

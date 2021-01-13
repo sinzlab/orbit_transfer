@@ -4,7 +4,6 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bias_transfer.configs.trainer import TransferTrainerConfig
 from bias_transfer.dataset.dataset_classes.npy_dataset import NpyDataset
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from bias_transfer.trainer.main_loop_modules.fisher_estimation import FisherEstimation
@@ -15,7 +14,7 @@ from bias_transfer.trainer.trainer import Trainer
 class PseudoTrainer(Trainer):
     def __init__(self, dataloaders, model, seed, uid, cb, **kwargs):
         super().__init__(dataloaders, model, seed, uid, cb, **kwargs)
-        self.config = TransferTrainerConfig.from_dict(kwargs)
+        self.main_task = list(self.task_keys)[0]
 
     def train(self):
         self.tracker.start_epoch()
@@ -30,8 +29,8 @@ class PseudoTrainer(Trainer):
                 method=self.config.extract_coreset.get("method"),
                 size=self.config.extract_coreset.get("size"),
             )
-            if "img_classification_cs" in self.data_loaders["train"]:  # update coreset
-                cs = self.data_loaders["train"]["img_classification_cs"].dataset
+            if f"{self.main_task}_cs" in self.data_loaders["train"]:  # update coreset
+                cs = self.data_loaders["train"][f"{self.main_task}_cs"].dataset
                 train["source_cs"] = np.concatenate([train["source_cs"], cs.samples])
                 train["target_cs"] = np.concatenate([train["target_cs"], cs.targets])
         else:
@@ -68,21 +67,17 @@ class PseudoTrainer(Trainer):
 
     def extract_coreset(self, data, method, size):
         print(method)
-        indices = list(
-            range(len(self.data_loaders[data]["img_classification"].dataset))
-        )
+        indices = list(range(len(self.data_loaders[data][self.main_task].dataset)))
         if method == "random":
             np.random.seed(self.seed)
             np.random.shuffle(indices)
             coreset_idx, remain_idx = indices[:size], indices[size:]
         elif method == "k-center":
             try:
-                dataset = self.data_loaders[data][
-                    "img_classification"
-                ].dataset.data.numpy()
+                dataset = self.data_loaders[data][self.main_task].dataset.data.numpy()
             except:
                 dataset = self.data_loaders[data][
-                    "img_classification"
+                    self.main_task
                 ].dataset.dataset.samples.numpy()
 
             def update_distance(dists, x_train, current_id):

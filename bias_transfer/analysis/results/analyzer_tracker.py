@@ -202,9 +202,10 @@ class Analyzer:
             # Split off alpha from name
             df = df.reset_index()
             new = df["name"].str.split(":", n=1, expand=True)
-            df.drop(columns=["name"], inplace=True)
-            df["name"] = new[0]
-            df["alpha"] = new[1]
+            if len(new.columns) > 1:
+                df.drop(columns=["name"], inplace=True)
+                df["name"] = new[0]
+                df["alpha"] = new[1]
             df = df.set_index("name")
         return df
 

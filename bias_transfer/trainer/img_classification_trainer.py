@@ -93,8 +93,9 @@ class ImgClassificationTrainer(Trainer):
         self, mode, task_key, loss, outputs, targets,
     ):
         if task_key != "transfer" and task_key in self.config.loss_functions:
-            if (
-                not self.config.regularization.get("regularizer") == "Mixup"
+            if not (
+                self.config.regularization
+                and self.config.regularization.get("regularizer") == "Mixup"
             ):  # otherwise this is done in the mainloop-module
                 loss += self.criterion[task_key](outputs, targets)
                 _, predicted = outputs.max(1)

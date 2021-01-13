@@ -4,7 +4,7 @@ from . import generate_and_save
 
 
 def main(dataset="FashionMNIST"):
-    for bias in ["expansion",
+    for bias in ["clean",
                  "color",
                  "color_shuffle",
                  "translation",

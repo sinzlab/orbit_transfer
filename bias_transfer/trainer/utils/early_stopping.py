@@ -79,7 +79,8 @@ def early_stopping(
             # if a scheduler is defined, a .step with the current objective is all that is needed to reduce the LR
             if scheduler is not None:
                 if (config.scheduler == "adaptive") and (
-                    not config.scheduler_options.get("mtl")
+                    True
+                    # not config.scheduler_options.get("mtl")
                 ):  # only works sofar with one task but not with MTL
                     # scheduler.step(list(current_objective.values())[0]['eval' if config.maximize else 'loss'])
                     scheduler.step(current_objective)
@@ -125,7 +126,8 @@ def early_stopping(
 
         if (epoch < max_iter) & (lr_decay_steps > 1) & (repeat < lr_decay_steps):
             if (config.scheduler == "adaptive") and (
-                config.scheduler_options.get("mtl")
+                False
+                # config.scheduler_options.get("mtl")
             ):  # adaptive lr scheduling for mtl alongside early_stopping
                 scheduler.step()
             decay_lr()

@@ -4,7 +4,7 @@ import torch
 import torch.utils.data as Data
 from sklearn.datasets import fetch_openml
 
-from bias_transfer.configs.dataset import RegressionDatasetConfig
+from bias_transfer.configs.dataset import Regression
 
 
 def load_mauna_loa_atmospheric_co2():
@@ -72,7 +72,7 @@ def load_sinusoid_data(noisy=False, train_range=10):
 
 
 def regression_dataset_loader(seed, **config):
-    config = RegressionDatasetConfig.from_dict(config)
+    config = Regression.from_dict(config)
     print("Loading dataset: {}".format(config.dataset_cls))
     torch.manual_seed(seed)
     np.random.seed(seed)

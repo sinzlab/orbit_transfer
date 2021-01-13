@@ -2,9 +2,9 @@ import torch
 import numpy as np
 
 from bias_transfer.configs.model import (
-    ClassificationModelConfig,
-    MTLModelConfig,
-    RegressionModelConfig,
+    Classification,
+    MTL,
+    Regression,
 )
 from bias_transfer.models.resnet import resnet_builder
 from bias_transfer.models.wrappers.noise_adv import NoiseAdvWrapper
@@ -32,7 +32,7 @@ def neural_cnn_builder(data_loaders, seed: int = 1000, **config):
 
 
 def mtl_builder(data_loaders, seed: int = 1000, **config):
-    config = MTLModelConfig.from_dict(config)
+    config = MTL.from_dict(config)
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -63,8 +63,8 @@ def mtl_builder(data_loaders, seed: int = 1000, **config):
     return model
 
 
-def classification_cnn_builder(data_loader, seed: int, **config):
-    config = ClassificationModelConfig.from_dict(config)
+def classification_model_builder(data_loader, seed: int, **config):
+    config = Classification.from_dict(config)
     torch.manual_seed(seed)
     np.random.seed(seed)
     if "vgg" in config.type:
@@ -123,8 +123,8 @@ def classification_cnn_builder(data_loader, seed: int, **config):
     return model
 
 
-def regression_mlp_builder(data_loader, seed: int, **config):
-    config = RegressionModelConfig.from_dict(config)
+def regression_model_builder(data_loader, seed: int, **config):
+    config = Regression.from_dict(config)
     torch.manual_seed(seed)
     np.random.seed(seed)
 

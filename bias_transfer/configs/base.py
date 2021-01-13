@@ -13,29 +13,28 @@ logger = logging.getLogger(__name__)
 Description = namedtuple("Description", "name seed")
 
 
-def baseline(init):
-    @wraps(init)
-    def new_init(self, baseline=None, *args, **kwargs):
-        if baseline is not None:
-            baseline_conf = baseline.to_dict()
-            kwargs.update({k: v for k, v in baseline_conf.items() if k not in kwargs.keys()})
-        init(self, *args, **kwargs)
-    return new_init
-
 class BaseConfig(object):
     r""" Base class for all configuration classes.
         Handles methods for loading/saving configurations, and interaction with nnfabrik.
 
-        Adapted from https://github.com/huggingface/transformers/blob/master/src/transformers/configuration_utils.py
+        Originally inspired by https://github.com/huggingface/transformers/blob/master/src/transformers/configuration_utils.py
     """
 
     config_name = ""
     table = None
     fn = None
 
-    @baseline
     def __init__(self, **kwargs):
-        self.comment = kwargs.pop("comment", "")
+        self.load_kwargs(**kwargs)
+        self.comment = ""
+        self.conditional_assignment()
+
+    def __setattr__(self, key, value):
+        if self.__getattribute__(key) is None:
+            if isinstance(value, dict):
+                if value.get("DEFAULT EMPTY", False):
+                    value = {}
+            object.__setattr__(self, key, value)
 
     def __getattribute__(self, name):
         try:
@@ -46,15 +45,17 @@ class BaseConfig(object):
             else:
                 return None
 
-    def update(self, **kwargs):
+    def update(self, setting: Dict):
+        for key, value in setting.items():
+            object.__setattr__(self, key, value)
+        self.conditional_assignment()
+
+    def conditional_assignment(self):
+        pass
+
+    def load_kwargs(self, **kwargs):
         for key, value in kwargs.items():
-            try:
-                setattr(self, key, value)
-            except AttributeError as err:
-                logger.error(
-                    "Can't set {} with value {} for {}".format(key, value, self)
-                )
-                raise err
+            self.__setattr__(key, value)
 
     def get_key(self):
         hash = make_hash(self.to_dict())
@@ -72,7 +73,7 @@ class BaseConfig(object):
                 self.to_dict(),
                 self.comment,
                 None,  # Fabrikant will automatically be set to current user
-                skip_duplicates=True  # we could still have duplicates
+                skip_duplicates=True,  # we could still have duplicates
             )
 
     def save(self, save_directory):

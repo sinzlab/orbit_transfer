@@ -19,6 +19,11 @@ class Experiment(BaseConfig):
         self.seed = seed
         self.comment = self.trainer.comment
 
+    def update(self, setting: Dict):
+        self.dataset.update(setting.get("dataset", {}))
+        self.model.update(setting.get("model", {}))
+        self.trainer.update(setting.get("trainer", {}))
+
     def get_key(self):
         key = self.dataset.get_key()
         key.update(self.model.get_key())

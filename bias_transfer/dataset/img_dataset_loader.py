@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data.dataset import ChainDataset, ConcatDataset, Subset
+from torch.utils.data.dataset import ConcatDataset, Subset
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets
 from bias_transfer.configs.dataset import ImageDatasetConfig
@@ -196,7 +196,6 @@ def get_datasets(config, transform_test, transform_train, transform_val):
         dataset_cls = eval("torchvision.datasets." + config.dataset_cls)
         kwargs = {
             "root": config.data_dir,
-            "download": config.download,
             "transform": transform_train,
         }
 
@@ -246,7 +245,6 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             DATASET_URLS[config.dataset_cls],
             config.data_dir,
             dataset_cls=config.dataset_cls,
-            download=config.dowload,
         )
 
         train_dir = os.path.join(dataset_dir, "train")
@@ -261,7 +259,6 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             test_dataset = dataset_cls(
                 root=config.data_dir,
                 train=False,
-                download=config.download,
                 transform=transform_test,
             )
         else:
@@ -278,7 +275,6 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             DATASET_URLS[config.dataset_cls + "-ST"],
             config.data_dir,
             dataset_cls=config.dataset_cls + "-ST",
-            download=config.dowload,
         )
         st_test_dataset = datasets.ImageFolder(st_dataset_dir, transform=transform_test)
 
@@ -292,7 +288,6 @@ def get_datasets(config, transform_test, transform_train, transform_val):
                 url,
                 config.data_dir,
                 dataset_cls=config.dataset_cls + "-C",
-                download=config.download,
             )
 
             c_test_datasets = {}

@@ -71,7 +71,7 @@ bias_dict = {
     "rotation": (apply_rotation, {}),
     "rotation_regression": (apply_rotation, {"regression": True}),
     "addition": (apply_additon, {}),
-    "expansion": (None, {}),
+    "clean": (None, {}),
     "clean_shuffle": (apply_label_shuffle, {}),
 }
 
