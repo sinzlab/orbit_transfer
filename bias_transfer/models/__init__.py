@@ -16,6 +16,7 @@ from nnfabrik.utility.nn_helpers import load_state_dict
 from nnvision.models.models import se_core_gauss_readout, se_core_point_readout
 from .lenet import lenet_builder
 from .lenet_bayesian import lenet_builder as bayes_builder
+from .lenet_frcl import lenet_builder as frcl_builder
 from .mlp import MLP
 from .wrappers import *
 
@@ -76,6 +77,8 @@ def classification_model_builder(data_loader, seed: int, **config):
     elif "lenet" in config.type:
         if "bayes" in config.type:
             model = bayes_builder(seed, config)
+        elif "frcl" in config.type:
+            model = frcl_builder(seed, config)
         else:
             model = lenet_builder(seed, config)
     else:

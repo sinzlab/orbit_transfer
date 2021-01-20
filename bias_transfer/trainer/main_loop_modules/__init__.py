@@ -11,3 +11,4 @@ from .parameter_regularization.mixup import Mixup
 from .parameter_regularization.vcl import VCL
 from .representation_regularization.rdl import RDL
 from .representation_regularization.knowledge_distillation import KnowledgeDistillation
+from .function_regularization.frcl import FRCL

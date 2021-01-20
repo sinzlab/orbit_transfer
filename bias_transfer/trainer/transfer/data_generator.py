@@ -1,3 +1,5 @@
+from copy import copy
+
 from torch.utils.data.sampler import SubsetRandomSampler
 from tqdm import tqdm
 import torch
@@ -9,6 +11,7 @@ from bias_transfer.trainer.img_classification_trainer import ImgClassificationTr
 from bias_transfer.trainer.main_loop_modules.fisher_estimation import FisherEstimation
 from bias_transfer.trainer.regression_trainer import RegressionTrainer
 from bias_transfer.trainer.trainer import Trainer
+from bias_transfer.trainer.transfer.coreset_extraction import extract_coreset
 
 
 class PseudoTrainer(Trainer):
@@ -24,15 +27,20 @@ class PseudoTrainer(Trainer):
         if self.config.save_representation:
             train = self.generate_rep_dataset(data="train")
         elif self.config.extract_coreset:
-            train = self.extract_coreset(
-                data="train",
-                method=self.config.extract_coreset.get("method"),
-                size=self.config.extract_coreset.get("size"),
+            save_in_model = self.config.extract_coreset.pop("save_in_model")
+            train = extract_coreset(
+                data_loader=self.data_loaders["train"][self.main_task],
+                model=self.model,
+                seed=self.seed,
+                device=self.device,
+                **self.config.extract_coreset,
             )
             if f"{self.main_task}_cs" in self.data_loaders["train"]:  # update coreset
                 cs = self.data_loaders["train"][f"{self.main_task}_cs"].dataset
                 train["source_cs"] = np.concatenate([train["source_cs"], cs.samples])
                 train["target_cs"] = np.concatenate([train["target_cs"], cs.targets])
+            if save_in_model:
+                self.model.coreset = torch.tensor(train["source_cs"]).to(self.device)
         else:
             train = None
 
@@ -63,54 +71,6 @@ class PseudoTrainer(Trainer):
             for src, _ in data_loader:
                 collected_inputs.append(src)
             outputs["source"] = torch.cat(collected_inputs).numpy()
-        return outputs
-
-    def extract_coreset(self, data, method, size):
-        print(method)
-        indices = list(range(len(self.data_loaders[data][self.main_task].dataset)))
-        if method == "random":
-            np.random.seed(self.seed)
-            np.random.shuffle(indices)
-            coreset_idx, remain_idx = indices[:size], indices[size:]
-        elif method == "k-center":
-            try:
-                dataset = self.data_loaders[data][self.main_task].dataset.data.numpy()
-            except:
-                dataset = self.data_loaders[data][
-                    self.main_task
-                ].dataset.dataset.samples.numpy()
-
-            def update_distance(dists, x_train, current_id):
-                for i in range(x_train.shape[0]):
-                    current_dist = np.linalg.norm(
-                        x_train[i, :] - x_train[current_id, :]
-                    )
-                    dists[i] = np.minimum(current_dist, dists[i])
-                return dists
-
-            dists = np.full(dataset.shape[0], np.inf)
-            current_id = 0
-            coreset_idx = []
-            remain_idx = indices
-            for _ in range(size):
-                dists = update_distance(dists, dataset, current_id)
-                coreset_idx.append(current_id)
-                remain_idx.remove(current_id)
-                current_id = np.argmax(dists)
-        collected_inputs = []
-        collected_labels = []
-        data_loader = next(iter(self.data_loaders[data].values()))
-        for src, trg in data_loader:
-            collected_inputs.append(src)
-            collected_labels.append(trg)
-        inputs = torch.cat(collected_inputs).numpy()
-        labels = torch.cat(collected_labels).numpy()
-        outputs = {
-            "source": inputs[remain_idx],
-            "source_cs": inputs[coreset_idx],
-            "target": labels[remain_idx],
-            "target_cs": labels[coreset_idx],
-        }
         return outputs
 
     def estimate_fisher(self, data):
