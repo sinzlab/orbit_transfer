@@ -30,34 +30,16 @@ class TransferExperiment(Experiment):
     def get_restrictions(self, level: int = 0):
         if len(self.configs) <= level:
             return {}
-        prev_key = {
-            "prev_model_fn": "",
-            "prev_model_hash": "",
-            "prev_dataset_fn": "",
-            "prev_dataset_hash": "",
-            "prev_trainer_fn": "",
-            "prev_trainer_hash": "",
-            "collapsed_history": "",
-        }
+        collapsed_history = ""
         for i, config in enumerate(self.configs[: level + 1]):
-            if i > 0:
-                key_for_hash = copy.deepcopy(prev_key)
-                key_for_hash["prev_collapsed_history"] = key_for_hash[
-                    "collapsed_history"
-                ]
-                del key_for_hash["collapsed_history"]
-                collapsed_history = make_hash(key_for_hash)
-                prev_key = {
-                    "prev_model_fn": current_key["model_fn"],
-                    "prev_model_hash": current_key["model_hash"],
-                    "prev_dataset_fn": current_key["dataset_fn"],
-                    "prev_dataset_hash": current_key["dataset_hash"],
-                    "prev_trainer_fn": current_key["trainer_fn"],
-                    "prev_trainer_hash": current_key["trainer_hash"],
-                    "collapsed_history": collapsed_history,
-                }
-            current_key = config.get_key()  # TrainedModel keys
-        current_key.update(prev_key)
+            current_key = config.get_key()
+            current_key["collapsed_history"] = collapsed_history
+            prev_key = copy.deepcopy(current_key)
+            prev_key["prev_collapsed_history"] = prev_key[
+                "collapsed_history"
+            ]
+            del prev_key["collapsed_history"]
+            collapsed_history = make_hash(prev_key)
         return current_key
 
     def add_to_table(self):
