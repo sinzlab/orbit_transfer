@@ -39,7 +39,7 @@ class FRCL(nn.Module):
         self.w_prior = MultivariateNormal(
             torch.zeros(h_dim), covariance_matrix=sigma_prior * torch.eye(h_dim),
         )
-        self.pred_func = nn.Softmax()
+        self.pred_func = nn.Softmax(dim=-1)
         self.init_mu_std = init_mu_std
 
         self.L = nn.ParameterList(
@@ -221,7 +221,7 @@ class LeNet5(
         super(LeNet5, self).__init__(
             input_size=input_size,
             input_channels=input_channels,
-            h_dim=100,
+            h_dim=84,
             *args,
             **kwargs,
         )

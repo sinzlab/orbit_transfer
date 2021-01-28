@@ -27,6 +27,9 @@ def transferred_dataset_loader(seed, primary_dataset_fn=img_dataset_loader, **co
     main_task = next(iter(data_loaders["train"].keys()))
     main_data_loader = data_loaders["train"][main_task]
     main_dataset = main_data_loader.dataset
+    if "covariance" in transfer_data:
+        data_loaders["covariance"] = transfer_data.pop("covariance")
+
     if "source_cs" in transfer_data:  # we have a coreset
         if config.get("train_on_coreset"):
             load_npy("_cs", main_task, transfer_data, data_loaders, main_data_loader)

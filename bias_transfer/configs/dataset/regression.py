@@ -1,5 +1,5 @@
 from bias_transfer.configs.dataset.base import DatasetConfig
-from nnfabrik.main import Dataset
+from bias_transfer.tables.nnfabrik import Dataset
 
 
 class Regression(DatasetConfig):

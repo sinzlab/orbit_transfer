@@ -1,7 +1,7 @@
 from typing import Dict
 
 from bias_transfer.configs.trainer.base import TrainerConfig
-from nnfabrik.main import Trainer
+from bias_transfer.tables.nnfabrik import Trainer
 
 
 class Regression(TrainerConfig):

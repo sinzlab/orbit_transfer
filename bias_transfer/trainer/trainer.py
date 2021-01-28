@@ -36,11 +36,11 @@ class Trainer:
 
         self.data_loaders = dataloaders
         self.task_keys = dataloaders["train"].keys()
+        self.optimizer, self.stop_closure, self.criterion = self.get_training_controls()
+        self.lr_scheduler = self.prepare_lr_schedule()
         self.main_loop_modules = [
             globals().get(k)(trainer=self) for k in self.config.main_loop_modules
         ]
-        self.optimizer, self.stop_closure, self.criterion = self.get_training_controls()
-        self.lr_scheduler = self.prepare_lr_schedule()
 
         # Potentially reset parts of the model (after loading pretrained parameters)
         reset_params(self.model, self.config.reset)

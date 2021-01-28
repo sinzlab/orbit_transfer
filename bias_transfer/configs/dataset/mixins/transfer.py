@@ -1,8 +1,8 @@
-from bias_transfer.configs.dataset.image import ImageDatasetConfig
-from nnfabrik.main import Dataset
+from bias_transfer.configs.base import BaseConfig
+from bias_transfer.tables.nnfabrik import Dataset
 
 
-class Generated(ImageDatasetConfig):
+class Generated(BaseConfig):
     config_name = "dataset"
     table = Dataset()
     fn = "bias_transfer.dataset.transferred_dataset_loader"

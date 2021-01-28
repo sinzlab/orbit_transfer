@@ -1,0 +1,1 @@
+from .transfer import Generated

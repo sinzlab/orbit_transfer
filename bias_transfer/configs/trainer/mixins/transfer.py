@@ -19,6 +19,7 @@ class DataGenerationMixin(BaseConfig):
             "DEFAULT EMPTY": True,  # will turn into an empty dict
             "damping_factor": 0.0001,
         }
+        self.compute_covariance: bool = False
         self.extract_coreset: Dict = {}
         self.reset_for_new_task: bool = False
 

@@ -12,3 +12,4 @@ from .parameter_regularization.vcl import VCL
 from .representation_regularization.rdl import RDL
 from .representation_regularization.knowledge_distillation import KnowledgeDistillation
 from .function_regularization.frcl import FRCL
+from .function_regularization.fromp import FROMP

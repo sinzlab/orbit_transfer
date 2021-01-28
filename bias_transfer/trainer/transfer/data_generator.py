@@ -9,12 +9,13 @@ import matplotlib.pyplot as plt
 from bias_transfer.dataset.dataset_classes.npy_dataset import NpyDataset
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from bias_transfer.trainer.main_loop_modules.fisher_estimation import FisherEstimation
+from bias_transfer.trainer.main_loop_modules.function_regularization.fromp import FROMP
 from bias_transfer.trainer.regression_trainer import RegressionTrainer
 from bias_transfer.trainer.trainer import Trainer
 from bias_transfer.trainer.transfer.coreset_extraction import extract_coreset
 
 
-class PseudoTrainer(Trainer):
+class DataGenerator(Trainer):
     def __init__(self, dataloaders, model, seed, uid, cb, **kwargs):
         super().__init__(dataloaders, model, seed, uid, cb, **kwargs)
         self.main_task = list(self.task_keys)[0]
@@ -27,7 +28,7 @@ class PseudoTrainer(Trainer):
         if self.config.save_representation:
             train = self.generate_rep_dataset(data="train")
         elif self.config.extract_coreset:
-            save_in_model = self.config.extract_coreset.pop("save_in_model")
+            save_in_model = self.config.extract_coreset.pop("save_in_model", False)
             train = extract_coreset(
                 data_loader=self.data_loaders["train"][self.main_task],
                 model=self.model,
@@ -42,10 +43,15 @@ class PseudoTrainer(Trainer):
             if save_in_model:
                 self.model.coreset = torch.tensor(train["source_cs"]).to(self.device)
         else:
-            train = None
+            train = {}
 
         if self.config.compute_fisher:
             self.estimate_fisher(data="train")
+        elif self.config.compute_covariance:
+            train["covariance"] = self.compute_covariance(
+                data="train",
+                batch_size=self.config.compute_covariance.get("batch_size", 32),
+            )
         elif self.config.compute_si_omega:
             self.compute_omega()
 
@@ -101,6 +107,26 @@ class PseudoTrainer(Trainer):
             return_outputs=False,
         )
 
+    def compute_covariance(self, data, batch_size=32):
+        task_key = next(iter(self.data_loaders[data].keys()))
+        data_loader = self.data_loaders[data][task_key]
+        np.random.seed(self.seed)
+        data_loader = torch.utils.data.DataLoader(
+            data_loader.dataset,
+            batch_size=batch_size,
+            num_workers=data_loader.num_workers,
+            pin_memory=data_loader.pin_memory,
+            shuffle=False,
+        )
+        self.model.eval()
+        covariance = 0
+        # self.state['fisher'] = torch.zeros_like(self.state['mu'])
+        for data, label in tqdm(data_loader):
+            data = data.to(self.device)
+            self.optimizer.zero_grad()
+            covariance += FROMP.compute_covariance(data, self.model).cpu()
+        return covariance
+
     def compute_omega(self):
         print("Compute Synaptic Intelligence Omega")
         damping_factor = self.config.compute_si_omega.get("damping_factor", 0.0001)
@@ -124,21 +150,21 @@ class PseudoTrainer(Trainer):
                 delattr(self.model, f"{n}_SI_prev_task")
 
 
-class TransferPseudoTrainerClassificiation(ImgClassificationTrainer, PseudoTrainer):
+class TransferDataGeneratorClassificiation(ImgClassificationTrainer, DataGenerator):
     pass
 
 
-class TransferPseudoTrainerRegression(RegressionTrainer, PseudoTrainer):
+class TransferDataGeneratorRegression(RegressionTrainer, DataGenerator):
     pass
 
 
 def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
-    t = TransferPseudoTrainerClassificiation(
+    t = TransferDataGeneratorClassificiation(
         dataloaders, model, seed, uid, cb, **kwargs
     )
     return t.train()
 
 
 def regression_trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
-    t = TransferPseudoTrainerRegression(dataloaders, model, seed, uid, cb, **kwargs)
+    t = TransferDataGeneratorRegression(dataloaders, model, seed, uid, cb, **kwargs)
     return t.train()
