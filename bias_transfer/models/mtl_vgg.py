@@ -1,13 +1,13 @@
 import torchvision
 import torch.nn as nn
 from torch.autograd import Variable
-from mlutils.layers.cores import Core2d
+from neuralpredictors.layers.cores import Core2d
 import torch
 from nnfabrik.utility.nn_helpers import get_dims_for_loader_dict
 import numpy as np
 from torch.nn import functional as F
-from mlutils.layers.legacy import Gaussian2d
-from mlutils.training import eval_state
+from neuralpredictors.layers.legacy import Gaussian2d
+from neuralpredictors.training import eval_state
 from .vgg import create_vgg_readout
 
 VGG_TYPES = {

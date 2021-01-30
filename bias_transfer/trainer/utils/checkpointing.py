@@ -1,6 +1,6 @@
 import numpy as np
 
-from mlutils.training import copy_state
+from neuralpredictors.training import copy_state
 
 
 class Checkpointing:

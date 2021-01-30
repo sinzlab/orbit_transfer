@@ -2,7 +2,7 @@ import re
 
 from bias_transfer.analysis.utils import plot_preparation, save_plot
 from bias_transfer.tables.transfer import TransferredTrainedModel
-from mlutils.tracking import AdvancedMultipleObjectiveTracker as Tracker
+from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker as Tracker
 
 corruption_map = {
     "shot_noise": "Shot Noise",

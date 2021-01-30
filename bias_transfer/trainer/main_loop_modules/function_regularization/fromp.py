@@ -11,7 +11,7 @@ from bias_transfer.trainer.main_loop_modules.function_regularization.fromp_utils
     vector_to_parameter_grads,
 )
 from bias_transfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
-from mlutils.training import eval_state
+from neuralpredictors.training import eval_state
 
 
 class FROMP(MainLoopModule):

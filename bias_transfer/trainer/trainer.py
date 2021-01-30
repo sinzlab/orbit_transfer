@@ -5,7 +5,7 @@ from tqdm import tqdm
 import torch
 from torch import optim, nn
 import nnfabrik as nnf
-from mlutils.training import copy_state
+from neuralpredictors.training import copy_state
 
 from bias_transfer.models.utils import (
     freeze_params,

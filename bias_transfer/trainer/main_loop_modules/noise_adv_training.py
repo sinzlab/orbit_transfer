@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from functools import partial
 
-from mlutils.training import LongCycler
+from neuralpredictors.training import LongCycler
 from .main_loop_module import MainLoopModule
 
 

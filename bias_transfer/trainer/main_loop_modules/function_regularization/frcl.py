@@ -1,14 +1,8 @@
-import copy
-import os
-from collections import OrderedDict
 from functools import partial
 
-from torch import nn
 import torch
-from torch.autograd import Variable
 
 from bias_transfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
-from mlutils.training import copy_state
 
 
 class FRCL(MainLoopModule):

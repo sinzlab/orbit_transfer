@@ -2,9 +2,6 @@ import os
 import torch
 import numpy as np
 
-from torch import nn
-from torch.autograd import Variable
-
 from bias_transfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 
 

@@ -1,7 +1,7 @@
-from bias_transfer.trainer.utils.checkpointing import LocalCheckpointing, RemoteCheckpointing
+from bias_transfer.trainer.utils.checkpointing import RemoteCheckpointing
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from bias_transfer.trainer.utils import get_subdict, arctanh
-from mlutils.tracking import AdvancedMultipleObjectiveTracker
+from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
 
 
 def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):

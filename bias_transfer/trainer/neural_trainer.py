@@ -5,7 +5,7 @@ from torch import nn
 
 from bias_transfer.trainer.trainer import Trainer
 from bias_transfer.trainer.utils import NBLossWrapper, get_subdict
-from mlutils import measures as mlmeasures
+from neuralpredictors import measures as mlmeasures
 from nnvision.utility import measures
 from nnvision.utility.measures import get_poisson_loss
 
