@@ -32,7 +32,7 @@ class RemoteCheckpointing(Checkpointing):
             **self.chkpt_options,
         }
         if self.scheduler is not None:
-            state["scheduler"] = self.scheduler
+            state["scheduler"] = self.scheduler.state_dict()
         self.call_back(
             epoch=epoch, model=self.model, state=state,
         )  # save model
