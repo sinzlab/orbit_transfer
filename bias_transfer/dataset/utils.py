@@ -89,7 +89,7 @@ def create_ImageFolder_format(dataset_dir: str):
             os.rename(os.path.join(img_dir, img), os.path.join(newpath, img))
 
 
-def get_dataset(url: str, data_dir: str, dataset_cls: str, download: bool) -> str:
+def get_dataset(url: str, data_dir: str, dataset_cls: str) -> str:
     """
     Downloads the dataset from an online downloadable link and
     sets up the folders according to torch ImageFolder required
@@ -99,7 +99,6 @@ def get_dataset(url: str, data_dir: str, dataset_cls: str, download: bool) -> st
         url (str): download link of the dataset from the internet
         data_dir (str): the directory where to download the dataset
         dataset_cls (str): name of the dataset's folder
-        download (bool): download the data if not present
     Returns:
         dataset_dir (str): full path to the dataset incl. dataset folder
     """
@@ -115,10 +114,6 @@ def get_dataset(url: str, data_dir: str, dataset_cls: str, download: bool) -> st
         ) or os.path.exists(finished_flag):
             print("Images already downloaded in {}".format(dataset_dir))
             return dataset_dir
-    elif download is False:
-        raise FileNotFoundError(
-            "Images not present but download not acitvated! Please check data folder!"
-        )
     else:
         os.makedirs(dataset_dir)
     if dataset_cls == "CIFAR10-Semisupervised":

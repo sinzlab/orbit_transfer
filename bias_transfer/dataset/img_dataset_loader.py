@@ -120,7 +120,7 @@ def get_transforms(config):
             if config.apply_normalization
             else None,
         ]
-        transform_test = [  #TODO: we don't need resizing + cropping for IN-C!
+        transform_test = [  # TODO: we don't need resizing + cropping for IN-C!
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.Grayscale() if config.apply_grayscale else None,
@@ -197,6 +197,7 @@ def get_datasets(config, transform_test, transform_train, transform_val):
         kwargs = {
             "root": config.data_dir,
             "transform": transform_train,
+            "download": True,
         }
 
         if config.dataset_cls == "SVHN":
@@ -224,21 +225,21 @@ def get_datasets(config, transform_test, transform_train, transform_val):
             f"{config.bias}_train_target.npy",
             root=dataset_dir,
             transform=transform_train,
-            target_type=torch.float32 if "regression" in config.bias else torch.long
+            target_type=torch.float32 if "regression" in config.bias else torch.long,
         )
         valid_dataset = NpyDataset(
             f"{config.bias}_train_source.npy",
             f"{config.bias}_train_target.npy",
             root=dataset_dir,
             transform=transform_val,
-            target_type=torch.float32 if "regression" in config.bias else torch.long
+            target_type=torch.float32 if "regression" in config.bias else torch.long,
         )
         test_dataset = NpyDataset(
             f"{config.bias}_test_source.npy",
             f"{config.bias}_test_target.npy",
             root=dataset_dir,
             transform=transform_test,
-            target_type=torch.float32 if "regression" in config.bias else torch.long
+            target_type=torch.float32 if "regression" in config.bias else torch.long,
         )
     else:
         dataset_dir = get_dataset(
@@ -300,8 +301,8 @@ def get_datasets(config, transform_test, transform_train, transform_val):
                         start = (c_level - 1) * 10000
                         end = c_level * 10000
                         c_test_datasets[c_category[:-4]][c_level] = NpyDataset(
-                            sample_file=c_category,
-                            target_file="labels.npy",
+                            samples=c_category,
+                            targets="labels.npy",
                             root=dataset_dir,
                             start=start,
                             end=end,
@@ -396,7 +397,11 @@ def get_data_loaders(
         pin_memory=config.pin_memory,
         shuffle=True,
     )
-    task_key = "regression" if "regression" in config.bias else "img_classification"
+    task_key = (
+        "regression"
+        if config.bias is not None and "regression" in config.bias
+        else "img_classification"
+    )
     data_loaders = {
         "train": {task_key: train_loader},
         "validation": {task_key: valid_loader},

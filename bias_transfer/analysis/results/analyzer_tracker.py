@@ -56,15 +56,15 @@ class Analyzer:
     def __init__(self):
         self.data = {}
 
-    def load_data(self, configs, transfer_levels=(0,)):
+    def load_data(self, configs):
         # Select data:
         for description, config in configs.items():
-            for level in transfer_levels:
+            level = 0
+            while True:
                 restriction = config.get_restrictions(level)
-                if restriction:
-                    restricted = TransferredTrainedModel() & restriction
-                else:
-                    restricted = None
+                if not restriction:
+                    break
+                restricted = TransferredTrainedModel() & restriction
                 if restricted:  # could be empty if entry is not computed yet
                     fetch_res = restricted.fetch1("output")
                     if fetch_res:  # could be a data generation step (no output)
@@ -74,6 +74,7 @@ class Analyzer:
                             }
                         else:
                             self.data[description][level] = Tracker.from_dict(fetch_res)
+                level += 1
 
     def plot_training_progress(self, dataset="Validation"):
         self.plot(
@@ -250,10 +251,18 @@ class Analyzer:
                     y=c,
                     hue="name",
                     ax=ax,
-                    legend="brief" if i == 7 else False,
+                    legend="brief" if i == 5 else False,
                     style="name",
                     markers=True,
                 )
+                if i == 5 and legend_outside:
+                    ax.legend(
+                        fontsize=14,
+                        title_fontsize="14",
+                        bbox_to_anchor=(1.05, 1),
+                        loc="upper left",
+                        borderaxespad=0.0,
+                    )
                 ax.axhline(y=direct_b[c], lw=0.7, color="brown")
                 ax.axvline(x=direct_a[df.columns[i - 1]], lw=0.8, color="red")
                 min_x = min(min_x, ax.get_xlim()[0])
@@ -264,6 +273,8 @@ class Analyzer:
                 ax.set_xlabel(self.name_map(ax.get_xlabel().split("->")[1], "A: "))
                 ax.set_ylabel(self.name_map(ax.get_ylabel(), "B: "))
 
+        axs[-1][-1].axis("off")
+
         for i in range(len(axs)):
             for j in range(len(axs[i])):
                 # axs[i][j].set_xlim([min_x,max_x])
@@ -273,17 +284,18 @@ class Analyzer:
         plt.subplots_adjust(hspace=0.4)
         if "talk" in style:
             if legend_outside:
-                plt.legend(
-                    fontsize=14,
-                    title_fontsize="14",
-                    bbox_to_anchor=(1.05, 1),
-                    loc=2,
-                    borderaxespad=0.0,
-                )
+                pass
+                # ax.legend(
+                #     fontsize=14,
+                #     title_fontsize="14",
+                #     bbox_to_anchor=(1.05, 1),
+                #     loc="upper left",
+                #     borderaxespad=0.0,
+                # )
             else:
                 plt.legend(fontsize=14, title_fontsize="14")
         elif legend_outside:
-            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+            plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0.0)
         if save:
             save_plot(
                 fig,

@@ -25,22 +25,34 @@ class TrainerConfig(BaseConfig):
         self.patience: int = 10
         self.threshold: float = 0.0001
         self.verbose: bool = False
-        self.lr_milestones: Tuple[int] = (30, 60)
+        self.lr_milestones: Tuple = (30, 60)
         self.min_lr: float = 0.00001  # lr scheduler min learning rate
         self.threshold_mode: str = "rel"
         self.train_cycler: str = "LongCycler"
         self.train_cycler_args: Dict = {}
         self.loss_functions: Dict = {"img_classification": "CrossEntropyLoss"}
         self.loss_weighing: bool = False
-        self.loss_accum_batch_n: int = None  # for gradient accumulation how often to call opt.step
-        self.interval: int = 1  # interval at which objective evaluated for early stopping
+        self.loss_accum_batch_n: int = (
+            None  # for gradient accumulation how often to call opt.step
+        )
+        self.interval: int = (
+            1  # interval at which objective evaluated for early stopping
+        )
         self.max_iter: int = 100  # maximum number of iterations (epochs)
-        self.restore_best: bool = True  # in case of loading best model at the end of training
-        self.lr_decay_steps: int = 3  # Number of times the learning rate should be reduced before stopping the training.
+        self.restore_best: bool = (
+            True  # in case of loading best model at the end of training
+        )
+        self.lr_decay_steps: int = 1  # Number of times the learning rate should be reduced before stopping the training.
         self.show_epoch_progress: bool = False
 
-        self.main_loop_modules: list = ["ModelWrapper"]
+        self.main_loop_modules: list = []
 
         self.mtl: bool = False
 
         super().__init__(**kwargs)
+
+    def conditional_assignment(self):
+        if "ModelWrapper" in self.main_loop_modules:
+            self.main_loop_modules.remove("ModelWrapper")
+        self.main_loop_modules.append("ModelWrapper")  # we need this to be added last
+        super().conditional_assignment()

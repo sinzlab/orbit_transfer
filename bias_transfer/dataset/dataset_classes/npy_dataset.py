@@ -10,6 +10,8 @@ class NpyDataset(VisionDataset):
         samples,
         targets,
         root="",
+        start=0,
+        end=0,
         transforms=None,
         transform=None,
         target_transform=None,
@@ -27,6 +29,9 @@ class NpyDataset(VisionDataset):
         else:
             self.targets = targets
         self.targets = torch.from_numpy(self.targets).type(target_type)
+        if end != 0:
+            self.samples = torch.clone(self.samples[start:end])
+            self.targets = torch.clone(self.targets[start:end])
 
     def __getitem__(self, index):
         sample = self.samples[index]
