@@ -332,7 +332,7 @@ class Analyzer:
             for desc, tracker in self.data.items():
                 row = {"name": desc.name}
                 for key in to_plot:
-                    row[rename(key[0])] = tracker.get_current_objective(*key)
+                    row[rename(key[0])] = tracker[level].get_current_objective(*key)
                 row_list.append(row)
             df = pd.DataFrame(row_list)
             df.index = df.name

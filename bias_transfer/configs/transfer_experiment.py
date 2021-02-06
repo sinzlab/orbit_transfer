@@ -33,13 +33,12 @@ class TransferExperiment(Experiment):
         collapsed_history = ""
         for i, config in enumerate(self.configs[: level + 1]):
             current_key = config.get_key()
+            current_key["transfer_step"] = i
+            current_key["data_transfer"] = int(config.trainer.data_transfer)
             current_key["collapsed_history"] = collapsed_history
-            prev_key = copy.deepcopy(current_key)
-            prev_key["prev_collapsed_history"] = prev_key[
-                "collapsed_history"
-            ]
-            del prev_key["collapsed_history"]
-            collapsed_history = make_hash(prev_key)
+            collapsed_history = make_hash(current_key)
+            del current_key["transfer_step"]  # we don't want this in the recipe (only here for hash)
+            del current_key["data_transfer"]  # same as above
         return current_key
 
     def add_to_table(self):
