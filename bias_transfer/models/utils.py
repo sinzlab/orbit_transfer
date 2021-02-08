@@ -12,9 +12,15 @@ def reset_params(model, reset=None):
     elif reset:
         print(f"Resetting {reset}")
         for layer in reset:
-            if isinstance(layer, str):
-                getattr(model, layer).apply(weight_reset)
-            else:
+            if isinstance(layer, str):  # e.g. "layer2.1.bn1.weight"
+                l_model = model
+                for l in layer.split("."):
+                    l_model = getattr(l_model, l)
+                if isinstance(l_model, nn.Module):
+                    l_model.apply(weight_reset)
+                else:
+                    weight_reset(l_model)
+            else:  # e.g. 1
                 model[layer].apply(weight_reset)
 
 
