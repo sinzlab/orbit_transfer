@@ -51,10 +51,19 @@ class TransferMixin(BaseConfig):
         super().__init__(**kwargs)
 
     def conditional_assignment(self):
-        if self.reset_linear_frequency:
+        if (
+            self.reset_linear_frequency
+            and not "RandomReadoutReset" in self.main_loop_modules
+        ):
             self.main_loop_modules.append("RandomReadoutReset")
-        if self.synaptic_intelligence_computation:
+        if (
+            self.synaptic_intelligence_computation
+            and not "SynapticIntelligence" in self.main_loop_modules
+        ):
             self.main_loop_modules.append("SynapticIntelligence")
-        if self.regularization:
+        if (
+            self.regularization
+            and not self.regularization["regularizer"] in self.main_loop_modules
+        ):
             self.main_loop_modules.append(self.regularization["regularizer"])
         super().conditional_assignment()

@@ -44,10 +44,13 @@ class NoiseAugmentationMixin(BaseConfig):
 
     def conditional_assignment(self):
         if (
-                self.noise_snr or self.noise_std or self.noise_test
-        ) and not self.representation_matching:  # Logit matching includes noise augmentation
+            (self.noise_snr or self.noise_std or self.noise_test)
+            and not self.representation_matching
+            and not "NoiseAugmentation" in self.main_loop_modules
+        ):  # Logit matching includes noise augmentation
             self.main_loop_modules.append("NoiseAugmentation")
         super().conditional_assignment()
+
 
 class NoiseAdversarialMixin(BaseConfig):
     def __init__(self, **kwargs):
@@ -61,9 +64,12 @@ class NoiseAdversarialMixin(BaseConfig):
         super().__init__(**kwargs)
 
     def conditional_assignment(self):
-        if self.noise_adv_classification or self.noise_adv_regression:
+        if (
+            self.noise_adv_classification or self.noise_adv_regression
+        ) and not "NoiseAdvTraining" in self.main_loop_modules:
             self.main_loop_modules.append("NoiseAdvTraining")
         super().conditional_assignment()
+
 
 class RepresentationMatchingMixin(BaseConfig):
     def __init__(self, **kwargs):
@@ -81,6 +87,9 @@ class RepresentationMatchingMixin(BaseConfig):
         super().__init__(**kwargs)
 
     def conditional_assignment(self):
-        if self.representation_matching:
+        if (
+            self.representation_matching
+            and not "RepresentationMatching" in self.main_loop_modules
+        ):
             self.main_loop_modules.append("RepresentationMatching")
         super().conditional_assignment()
