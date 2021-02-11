@@ -134,7 +134,7 @@ class Trainer:
             record_grad = False
         module_options = {} if module_options is None else module_options
         self.model.train() if train_mode else self.model.eval()
-        self.model.apply(partial(set_bn_to_eval, train_mode=batch_norm_train_mode))
+        set_bn_to_eval(self.model, layers=self.config.freeze, train_mode=batch_norm_train_mode)
         collected_outputs = []
         data_cycler = globals().get(cycler)(data_loader, **cycler_args)
 

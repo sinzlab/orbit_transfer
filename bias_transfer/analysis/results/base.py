@@ -20,7 +20,6 @@ class Analyzer:
                 if not restriction:
                     break
                 restricted = TransferredTrainedModel() & restriction
-                print(restricted, level, restriction)
                 if restricted:  # could be empty if entry is not computed yet
                     fetch_res = restricted.fetch1("output")
                     if fetch_res:  # could be a data generation step (no output)
@@ -79,11 +78,12 @@ class Analyzer:
         self._post_plot_operations(fig, style, **kwargs)
 
     def plot_comparison_line(
-        self, to_plot, level=0, style="lighttalk", rename=lambda x: x, **kwargs
+        self, to_plot, style="lighttalk", rename=lambda x: x, **kwargs
     ):
         fig, ax = plot_preparation(style)
         row_list = []
         for desc, tracker in self.data.items():
+            level = max(tracker.keys())
             row = {"name": self.name_map(desc.name)}
             for key in to_plot:
                 row[rename(key[0])] = tracker[level].get_current_objective(*key)

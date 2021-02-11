@@ -1,3 +1,5 @@
+from functools import partial
+
 import torch
 from torch import nn
 from torchvision.models.resnet import Bottleneck, BasicBlock
@@ -18,8 +20,6 @@ def reset_params(model, reset=None):
                     l_model = getattr(l_model, l)
                 if isinstance(l_model, nn.Module):
                     l_model.apply(weight_reset)
-                else:
-                    weight_reset(l_model)
             else:  # e.g. 1
                 model[layer].apply(weight_reset)
 
@@ -91,14 +91,31 @@ def get_model_parameters(model):
     return total_parameters
 
 
-def set_bn_to_eval(m, train_mode=False):
+def _set_bn_to_eval(m, train_mode=False):
     classname = m.__class__.__name__
     if "BatchNorm" in classname:
         m.train(train_mode)
 
 
+def set_bn_to_eval(model, layers=None, train_mode=False):
+    bn_set = partial(_set_bn_to_eval, train_mode=train_mode)
+    model = model.module if isinstance(model, nn.DataParallel) else model
+    if layers == "all":
+        model.apply(bn_set)
+    elif layers:
+        for layer in layers:
+            if isinstance(layer, str):  # e.g. "layer2.1.bn1.weight"
+                l_model = model
+                for l in layer.split(".")[:-1]:  # we want ["layer2","1","bn1"]
+                    l_model = getattr(l_model, l)
+                if isinstance(l_model, nn.Module):
+                    l_model.apply(bn_set)
+            else:  # e.g. 1
+                model[layer].apply(bn_set)
+
+
 def concatenate_flattened(tensor_list) -> torch.Tensor:
-       """
-       Given list of tensors, flattens each and concatenates their values.
-       """
-       return torch.cat([torch.reshape(t, (-1,)) for t in tensor_list])
+    """
+    Given list of tensors, flattens each and concatenates their values.
+    """
+    return torch.cat([torch.reshape(t, (-1,)) for t in tensor_list])
