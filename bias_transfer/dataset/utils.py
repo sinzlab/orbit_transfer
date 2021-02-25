@@ -134,7 +134,7 @@ def get_dataset(url: str, data_dir: str, dataset_cls: str) -> str:
         else:
             raise NotImplementedError("Unsupported dataset format.")
         # move to final destination
-        if dataset_cls in ("TinyImageNet-C", "CIFAR100-C", "CIFAR10-C"):
+        if dataset_cls in ("TinyImageNet-C", "CIFAR100-C", "CIFAR10-C","TinyImageNet"):
             for content in os.listdir(extract_dir):
                 shutil.move(os.path.join(extract_dir, content), dataset_dir)
             shutil.rmtree(extract_dir)

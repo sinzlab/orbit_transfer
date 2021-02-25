@@ -55,6 +55,8 @@ class TrainerConfig(BaseConfig):
 
         self.mtl: bool = False
 
+        self.data_transfer: bool = False
+
         super().__init__(**kwargs)
 
     def conditional_assignment(self):

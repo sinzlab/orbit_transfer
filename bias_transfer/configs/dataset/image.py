@@ -84,6 +84,7 @@ class ImageDatasetConfig(DatasetConfig):
         dataset_id = (
             f"{self.dataset_sub_cls}_{self.bias}" if self.bias else self.dataset_cls
         )
+        dataset_id += "_bw" if self.apply_grayscale else ""
         self.train_data_mean: Tuple[float] = self.data_mean_defaults[dataset_id]
         self.train_data_std: Tuple[float] = self.data_std_defaults[dataset_id]
 
