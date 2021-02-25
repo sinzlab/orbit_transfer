@@ -1,14 +1,29 @@
+import os
+
 import numpy as np
+import pickle as pkl
+
+import torch
 
 from neuralpredictors.training import copy_state
 
 
 class Checkpointing:
     def __init__(
-        self, model, scheduler, tracker, chkpt_options, maximize_score, call_back=None
+        self,
+        model,
+        optimizer,
+        scheduler,
+        tracker,
+        chkpt_options,
+        maximize_score,
+        call_back=None,
+        hash=None,
     ):
         self.call_back = call_back
+        self.hash = hash
         self.model = model
+        self.optimizer = optimizer
         self.scheduler = scheduler
         self.tracker = tracker
         self.chkpt_options = chkpt_options
@@ -28,13 +43,16 @@ class RemoteCheckpointing(Checkpointing):
             "score": score,
             "maximize_score": self.maximize_score,
             "tracker": self.tracker.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
             "patience_counter": patience_counter,
             **self.chkpt_options,
         }
         if self.scheduler is not None:
             state["scheduler"] = self.scheduler.state_dict()
         self.call_back(
-            epoch=epoch, model=self.model, state=state,
+            epoch=epoch,
+            model=self.model,
+            state=state,
         )  # save model
 
     def restore(self, restore_only_state=False, action="last"):
@@ -44,6 +62,7 @@ class RemoteCheckpointing(Checkpointing):
         }
         if not restore_only_state:
             loaded_state["tracker"] = self.tracker
+            loaded_state["optimizer"] = self.optimizer
             if self.scheduler is not None:
                 loaded_state["scheduler"] = self.scheduler
         self.call_back(
@@ -55,6 +74,70 @@ class RemoteCheckpointing(Checkpointing):
 
 
 class LocalCheckpointing(Checkpointing):
+    def save(self, epoch, score, patience_counter):
+        state = {
+            "score": score,
+            "epoch": epoch,
+            "optimizer": self.optimizer.state_dict(),
+            "tracker": self.tracker.state_dict(),
+            "patience_counter": patience_counter,
+            "model": self.model.state_dict(),
+        }
+        if self.scheduler is not None:
+            state["scheduler"] = self.scheduler.state_dict()
+        torch.save(state, f"./{self.hash}_{epoch}_{score}_chkpt.pth.tar")
+
+        # select checkpoints to be kept
+        checkpoints = [f for f in os.listdir("./") if self.hash in f]
+        keep_checkpoints = []
+        last_checkpoints = sorted(
+            checkpoints, key=lambda chkpt: int(chkpt.split("_")[1]), reverse=True
+        )
+        keep_checkpoints += last_checkpoints[
+            : self.chkpt_options.get("keep_last_n", 1)
+        ]  # w.r.t. temporal order
+        best_checkpoints = sorted(
+            checkpoints,
+            key=lambda chkpt: float(chkpt.split("_")[2]),
+            reverse=self.maximize_score,
+        )
+        keep_checkpoints += best_checkpoints[
+            : self.chkpt_options.get("keep_best_n", 1)
+        ]  # w.r.t. performance
+        # delete the others
+        for chkpt in checkpoints:
+            if not chkpt in keep_checkpoints:
+                os.remove(chkpt)
+
+    def restore(self, restore_only_state=False, action="last"):
+        # list checkpoints:
+        checkpoints = [f for f in os.listdir("./") if self.hash in f]
+        if not checkpoints:
+            return 0, -1
+        if action == "last":
+            chkpt = sorted(
+                checkpoints, key=lambda chkpt: int(chkpt.split("_")[1]), reverse=True
+            )[0]
+        elif action == "best":
+            chkpt = sorted(
+                checkpoints,
+                key=lambda chkpt: float(chkpt.split("_")[2]),
+                reverse=self.maximize_score,
+            )[0]
+
+        state = torch.load(chkpt)
+        if not restore_only_state:
+            self.tracker.load_state_dict(state["tracker"])
+            self.optimizer.load_state_dict(state["optimizer"])
+            if self.scheduler is not None:
+                self.scheduler.load_state_dict(state["scheduler"])
+        epoch = state.get("epoch", 0)
+        patience_counter = state.get("patience_counter", -1)
+        self.model.load_state_dict(state["model"])
+        return epoch, patience_counter
+
+
+class TemporaryCheckpointing(Checkpointing):
     def __init__(
         self, model, scheduler, tracker, chkpt_options, maximize_score, call_back=None
     ):

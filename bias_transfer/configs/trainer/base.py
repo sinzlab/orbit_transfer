@@ -21,7 +21,13 @@ class TrainerConfig(BaseConfig):
         self.lr_warmup: int = 0
         self.epoch: int = 0
         self.scheduler: str = "manual"  # or "adaptive"
-        self.chkpt_options: Dict = {}
+        self.chkpt_options: Dict = {
+            "save_every_n": 1,
+            "keep_best_n": 1,
+            "keep_last_n": 1,
+            "keep_selection": (),
+        }
+        self.keep_checkpoints: bool = False
         self.patience: int = 10
         self.threshold: float = 0.0001
         self.verbose: bool = False

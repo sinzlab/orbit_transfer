@@ -16,7 +16,7 @@ from bias_transfer.models.utils import (
 from bias_transfer.trainer.utils import SchedulerWrapper
 from bias_transfer.configs.trainer import TrainerConfig
 from nnfabrik.utility.nn_helpers import load_state_dict
-from bias_transfer.trainer.utils.checkpointing import LocalCheckpointing
+from bias_transfer.trainer.utils.checkpointing import LocalCheckpointing, RemoteCheckpointing
 from bias_transfer.trainer.main_loop_modules import *
 from bias_transfer.trainer.utils import LongCycler, MTL_Cycler
 from bias_transfer.trainer.utils.early_stopping import early_stopping
@@ -24,7 +24,7 @@ from bias_transfer.trainer.utils.early_stopping import early_stopping
 
 class Trainer:
     checkpointing_cls = (
-        LocalCheckpointing  # Open to chose between local and remote checkpointing
+        RemoteCheckpointing  # Open to chose between local and remote checkpointing
     )
 
     def __init__(self, dataloaders, model, seed, uid, cb, **kwargs):
@@ -52,11 +52,13 @@ class Trainer:
         self.train_stats = []
         checkpointing = self.checkpointing_cls(
             self.model,
+            self.optimizer,
             self.lr_scheduler,
             self.tracker,
             self.config.chkpt_options,
             self.config.maximize,
             partial(cb, uid=uid),
+            hash=nnf.utility.dj_helpers.make_hash(uid)
         )
         self.epoch_iterator = early_stopping(
             self.model,

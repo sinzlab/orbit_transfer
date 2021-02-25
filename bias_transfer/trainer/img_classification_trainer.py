@@ -1,7 +1,7 @@
 from functools import partial
 
 from bias_transfer.trainer.utils.checkpointing import (
-    RemoteCheckpointing,
+    RemoteCheckpointing, LocalCheckpointing,
 )
 from bias_transfer.trainer.trainer import Trainer
 from bias_transfer.trainer.utils import get_subdict, stringify
@@ -17,7 +17,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
 
 class ImgClassificationTrainer(Trainer):
-    checkpointing_cls = RemoteCheckpointing
+    checkpointing_cls = LocalCheckpointing
 
     @property
     def tracker(self):
