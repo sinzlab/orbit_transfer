@@ -1,4 +1,5 @@
 from torch import nn
+import torch.nn.functional as F
 import torch
 import numpy as np
 
@@ -13,6 +14,11 @@ class RepresentationMatching(NoiseAugmentation):
             self.criterion = nn.CosineEmbeddingLoss()
         else:
             self.criterion = nn.MSELoss()
+
+        self.extra_layer = self.config.representation_matching.get("extra_layer", False)
+        if self.extra_layer:
+            self.lin1 = nn.Linear(65536, 500, bias=False).to(self.device)
+            self.lin2 = nn.Linear(500, 200, bias=False).to(self.device)
 
         self.combine_losses = self.config.representation_matching.get("combine_losses")
         self.layer_weights = torch.ones((1, len(self.reps)), device=self.device)
@@ -85,6 +91,9 @@ class RepresentationMatching(NoiseAugmentation):
             # Retrieve representations that were selected for rep-matching:
             rep_1 = extra_outputs[rep][: self.batch_size][self.clean_flags]
             rep_2 = extra_outputs[rep][self.batch_size :]
+            if self.extra_layer:
+                rep_1 = self.lin2(F.relu(self.lin1(rep_1.flatten(start_dim=1))))
+                rep_2 = self.lin2(F.relu(self.lin1(rep_2.flatten(start_dim=1))))
             # Compute the loss:
             if isinstance(self.criterion, nn.CosineEmbeddingLoss):
                 o = torch.ones(
