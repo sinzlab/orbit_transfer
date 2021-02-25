@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import re
 
 from .base import Analyzer
-from ..utils import plot_preparation
+from ..plot import plot_preparation
 
 
 class CTestAnalyzer(Analyzer):

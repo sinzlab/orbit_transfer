@@ -10,7 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
 
-from bias_transfer.analysis.utils import plot_preparation, save_plot
+from bias_transfer.analysis.plot import plot_preparation, save_plot
 from bias_transfer.models import IntermediateLayerGetter
 from bias_transfer.trainer.main_loop_modules import NoiseAugmentation
 from nnfabrik.utility.dj_helpers import make_hash

@@ -9,7 +9,7 @@ from torch import nn
 from torch.backends import cudnn
 
 import bias_transfer.trainer.trainer
-from bias_transfer.analysis.utils import plot_preparation, save_plot
+from bias_transfer.analysis.plot import plot_preparation, save_plot
 
 
 class RepresentationAnalyzer:

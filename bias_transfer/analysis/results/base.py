@@ -2,7 +2,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from bias_transfer.analysis.utils import plot_preparation, save_plot
+from bias_transfer.analysis.plot import plot_preparation, save_plot
 from bias_transfer.tables.transfer import TransferredTrainedModel
 from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker as Tracker
 
@@ -30,27 +30,6 @@ class Analyzer:
                         else:
                             self.data[description][level] = Tracker.from_dict(fetch_res)
                 level += 1
-
-    def _post_plot_operations(self, fig, style="lighttalk", legend_outside=True, save=""):
-        if "talk" in style:
-            if legend_outside:
-                plt.legend(
-                    fontsize=14,
-                    title_fontsize="14",
-                    bbox_to_anchor=(1.05, 1),
-                    loc=2,
-                    borderaxespad=0.0,
-                )
-            else:
-                plt.legend(fontsize=14, title_fontsize="14")
-        elif legend_outside:
-            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
-        if save:
-            save_plot(
-                fig,
-                save + "_" + style,
-                types=("png", "pdf", "pgf") if "nips" in style else ("png",),
-            )
 
     def plot_progress_line(self, to_plot, level=0, style="lighttalk", **kwargs):
         fig, ax = plot_preparation(style)
