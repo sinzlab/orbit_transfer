@@ -2,7 +2,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from bias_transfer.analysis.plot import plot_preparation, save_plot
+from bias_transfer.analysis.plot import plot
 from bias_transfer.tables.transfer import TransferredTrainedModel
 from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker as Tracker
 
@@ -31,8 +31,8 @@ class Analyzer:
                             self.data[description][level] = Tracker.from_dict(fetch_res)
                 level += 1
 
-    def plot_progress_line(self, to_plot, level=0, style="lighttalk", **kwargs):
-        fig, ax = plot_preparation(style)
+    @plot
+    def plot_progress_line(self, to_plot, fig=None, ax=None, level=0, **kwargs):
         row_list = []
         for desc, tracker in self.data.items():
             if len(tracker.keys()) > level:
@@ -53,13 +53,11 @@ class Analyzer:
         df = df.stack().reset_index()
         df.columns = ["Training", "Epoch", to_plot[-1]]
         sns.lineplot(x="Epoch", y=to_plot[-1], hue="Training", data=df, ax=ax)
-        sns.despine(offset=10, trim=True)
-        self._post_plot_operations(fig, style, **kwargs)
 
+    @plot
     def plot_comparison_line(
-        self, to_plot, style="lighttalk", rename=lambda x: x, **kwargs
+        self, to_plot, fig=None, ax=None, rename=lambda x: x, **kwargs
     ):
-        fig, ax = plot_preparation(style)
         row_list = []
         for desc, tracker in self.data.items():
             level = max(tracker.keys())
@@ -72,12 +70,10 @@ class Analyzer:
         del df["name"]
         df = df.stack().reset_index()
         df.columns = ["Training", "Level", to_plot[0][-1]]
-        sns.lineplot(x="Level", data=df, y=to_plot[0][-1], hue="Training", ax=ax)
-        sns.despine(offset=10, trim=True)
-        self._post_plot_operations(fig, style, **kwargs)
+        sns.lineplot(x="Level", data=df, y=to_plot[0][-1], hue="Training", ax=ax[0][0])
 
-    def plot_bar(self, to_plot, style="lighttalk", **kwargs):
-        fig, ax = plot_preparation(style)
+    @plot
+    def plot_bar(self, to_plot, fig=None, ax=None, **kwargs):
         row_list = []
         for desc, tracker in self.data.items():
             row_list.append(
@@ -88,8 +84,6 @@ class Analyzer:
             )
         df = pd.DataFrame(row_list)
         sns.barplot(x="name", y=to_plot[-1], data=df, ax=ax)
-        sns.despine(offset=10, trim=True)
-        self._post_plot_operations(fig, style, **kwargs)
 
     def name_map(self, old_name, prefix=""):
         name = old_name.replace("->", " → ")

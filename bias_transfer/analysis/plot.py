@@ -48,6 +48,7 @@ def plot(plot_function):
         else:
             sns.set_context("paper")
             small_fontsize = 8
+            xsmall_fontsize = 7
             normal_fontsize = 10
             large_fontsize = 12
         if "tex" in style:
@@ -69,7 +70,7 @@ def plot(plot_function):
                 "axes.labelsize": small_fontsize,
                 "font.size": normal_fontsize,
                 # Make the legend/label fonts a little smaller
-                "legend.fontsize": small_fontsize,
+                "legend.fontsize": xsmall_fontsize,
                 "xtick.labelsize": small_fontsize,
                 "ytick.labelsize": small_fontsize,
             }
@@ -88,8 +89,8 @@ def plot(plot_function):
             ncols,
             figsize=fs,
             # dpi=dpi,
-            sharex=kwargs.get("sharex", False),
-            sharey=kwargs.get("sharey", False),
+            sharex=kwargs.pop("sharex", False),
+            sharey=kwargs.pop("sharey", False),
             gridspec_kw=gridspec_kw,
         )
         if nrows == 1:
@@ -101,10 +102,6 @@ def plot(plot_function):
         # execute the actual plotting
         plot_function(*args, fig=fig, ax=ax, **kwargs)
 
-        if despine:
-            sns.despine(offset=3, trim=False)
-
-
 
         if panel_labels:
             for i in range(len(ax)):
@@ -112,14 +109,13 @@ def plot(plot_function):
                     label = string.ascii_uppercase[i*len(ax[i])+j]
                     ax[i][j].text(
                         0.04,
-                        0.96,
+                        1.00,
                         label,
                         transform=ax[i][j].transAxes,
                         fontsize=normal_fontsize,
                         fontweight="bold",
                         va="top",
                     )
-
         if title:
             fig.suptitle(title, fontsize=large_fontsize)
         if y_label:
@@ -127,12 +123,12 @@ def plot(plot_function):
         if x_label:
             plt.xlabel(x_label, fontsize=normal_fontsize)
         if rotate_x_labels:
-            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
-
-
-        # plt.legend(fontsize=small_fontsize, title_fontsize=f"{small_fontsize}")
-        # if legend_outside:
-        #     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
+        if despine:
+            sns.despine(offset=3, trim=False)
+        if legend_outside:
+            plt.legend(fontsize=small_fontsize, title_fontsize=f"{small_fontsize}")
+            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
 
         if save:
             save_plot(
