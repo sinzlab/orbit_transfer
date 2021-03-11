@@ -24,6 +24,7 @@ def plot(plot_function):
         panel_labels = kwargs.pop("panel_labels", False)
         save = kwargs.pop("save", "")
         figure_heigh_scale = kwargs.pop("figure_height_scale", 1.0)
+        tight = kwargs.pop("tight", False)
 
         fs = set_size(
             style=style,
@@ -34,19 +35,23 @@ def plot(plot_function):
         )
         fs = (fs[0], fs[1] * nrows / (ncols)  * figure_heigh_scale)
         sns.set()
+
         if "light" in style:
             sns.set_style("whitegrid")
         if "ticks" in style:
             sns.set_style("ticks")
         if "dark" in style:
             plt.style.use("dark_background")
-        if "talk" in style:
+        if "talk" in style or "beamer" in style:
             sns.set_context("talk")
-            small_fontsize = 12
-            normal_fontsize = 14
-            large_fontsize = 16
+            tex_font = "sans"
+            small_fontsize = 10
+            xsmall_fontsize = 9
+            normal_fontsize = 12
+            large_fontsize = 13
         else:
             sns.set_context("paper")
+            tex_font = "serif"
             small_fontsize = 8
             xsmall_fontsize = 7
             normal_fontsize = 10
@@ -65,9 +70,9 @@ def plot(plot_function):
             nice_fonts = {
                 # Use LaTeX to write all text
                 "text.usetex": True,
-                "font.family": "serif",
+                "font.family": tex_font,
                 # Use 10pt font in plots, to match 10pt font in document
-                "axes.labelsize": small_fontsize,
+                "axes.labelsize": normal_fontsize,
                 "font.size": normal_fontsize,
                 # Make the legend/label fonts a little smaller
                 "legend.fontsize": xsmall_fontsize,
@@ -79,7 +84,7 @@ def plot(plot_function):
             mpl.rcParams.update(
                 {
                     "pgf.texsystem": "pdflatex",
-                    "font.family": "serif",
+                    "font.family": tex_font,
                     "text.usetex": True,
                     "pgf.rcfonts": False,
                 }
@@ -93,6 +98,7 @@ def plot(plot_function):
             sharey=kwargs.pop("sharey", False),
             gridspec_kw=gridspec_kw,
         )
+        plt.grid(True, linestyle=":")
         if nrows == 1:
             ax = [ax]
         if ncols == 1:
@@ -122,19 +128,21 @@ def plot(plot_function):
             plt.ylabel(y_label, fontsize=normal_fontsize)
         if x_label:
             plt.xlabel(x_label, fontsize=normal_fontsize)
+        if tight:
+            fig.tight_layout()
         if rotate_x_labels:
             plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
         if despine:
             sns.despine(offset=3, trim=False)
         if legend_outside:
-            plt.legend(fontsize=small_fontsize, title_fontsize=f"{small_fontsize}")
-            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+            plt.legend(fontsize=xsmall_fontsize, title_fontsize=f"{small_fontsize}", frameon=False)
+            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0, frameon=False)
 
         if save:
             save_plot(
                 fig,
                 save + "_" + style,
-                types=("png", "pdf", "pgf") if "tex" in style else ("png",),
+                types=("png", "pdf", "pgf") if "tex" in style else ("png","pdf"),
             )
 
     return plot_wrapper
@@ -159,7 +167,7 @@ def set_size(style, ratio=None, fraction=1, subplots=(1, 1), gridspec_kw=None):
     if "thesis" in style:
         width_pt = 426.79135
     elif "beamer" in style:
-        width_pt = 307.28987
+        width_pt = 398.3386
     elif "pnas" in style:
         width_pt = 246.09686
     elif "nips" in style or "iclr" in style:

@@ -203,7 +203,7 @@ def plot_robustness(
         overview_data = {}
 
     _plot(
-        noises=[noises[13], noises[7], noises[0]],
+        noises=noises,
         means=means,
         stds=stds,
         levels_list=levels,
@@ -273,23 +273,28 @@ def _plot(
             ax[row][col].set_title(name_change(cat))
             plot.set_xticks(levels_list)
             plot.set_xticklabels(levels_list)
-            plot.set_xlabel("Corruption Severity")
+            if row == len(ax)-1:
+                plot.set_xlabel("Corruption Severity")
+            else:
+                plot.set_xlabel(None)
             if col == 0:
                 plot.set_ylabel("Accuracy [%]")
 
-            ax[row][col].set_ylim([0, 40])
+            # ax[row][col].set_ylim([0, 50])
             ax[row][col].grid(True, linestyle=":")
 
             col = (col + 1) % len(ax[row])
             if col == 0:
                 row += 1
 
+        ax[-1][-1].axis("off")
+
         handles, labels = ax[0][0].get_legend_handles_labels()
         new_labels = ["Baseline", "MTL-Monkey", "MTL-Shuffled", "MTL-Oracle", "Oracle"]
         new_handles = []
         for label in new_labels:
             new_handles.append(handles[labels.index(label)])
-        fig.legend(new_handles, new_labels, loc=(0.02, 0.90), ncol=6, frameon=False)
+        fig.legend(new_handles, new_labels, loc=(0.05, 0.96), ncol=6, frameon=False)
         fig.tight_layout()
 
     if robustness_per_noise:

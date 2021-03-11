@@ -3,6 +3,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 from .base import Analyzer
+from ..plot import plot
 
 
 class BiasTransferAnalyzer(Analyzer):
@@ -57,69 +58,114 @@ class BiasTransferAnalyzer(Analyzer):
             )
         return df
 
-    def plot_frontier(self, save="", style="lighttalk", legend_outside=True):
+    @plot
+    def plot_frontier(
+        self, fig, ax, columns_range=(), title=False, hide_lines=False,
+    ):
         df = self.generate_table(last_n=2, label_steps=True)
-        direct_a = df.loc["Direct Training A"]
-        direct_b = df.loc["Direct Training B"]
-        fig, axs = plot_preparation(style, nrows=2, ncols=2)
+        direct_a = (
+            df.loc["Direct Training on Target"]
+            if "Direct Training on Target" in df.index
+            else None
+        )
+        direct_b = (
+            df.loc["Direct Training on Eval"]
+            if "Direct Training on Eval" in df.index
+            else None
+        )
         max_x, min_x, max_y, min_y = 0, 100, 0, 100
         for i, c in enumerate(df.columns):
+            if not columns_range[0] <= i <= columns_range[1]:
+                continue
             if i % 2 == 1:
-                ax = axs[(i - 1) // 4][((i - 1) % 4) // 2]
-                sns.lineplot(
+                if True:
+                    a = ax[i - 1 - columns_range[0]][i - 1 - columns_range[0]]
+                else:
+                    a = ax[(i - 1) // 4][((i - 1) % 4) // 2]
+                colors = [
+                    "#a6cee3",
+                    "#1f78b4",
+                    "#b2df8a",
+                    "#33a02c",
+                    "#fb9a99",
+                    "#e31a1c",
+                    "#fdbf6f",
+                    "#ff7f00",
+                    "#cab2d6",
+                    "#6a3d9a",
+                    "#ffff99",
+                ]
+                models = sorted(list(set(df.index)))
+                print(models)
+                colors = dict(zip(models, colors[: len(models)]))
+                print(colors)
+                plot_res = sns.lineplot(
                     data=df,
                     x=df.columns[i - 1],
                     y=c,
                     hue="name",
-                    ax=ax,
-                    legend="brief" if i == 5 else False,
+                    ax=a,
+                    legend="brief",
                     style="name",
                     markers=True,
+                    palette=colors,
                 )
-                if i == 5 and legend_outside:
-                    ax.legend(
-                        fontsize=14,
-                        title_fontsize="14",
-                        bbox_to_anchor=(1.05, 1),
-                        loc="upper left",
-                        borderaxespad=0.0,
+                for line in plot_res.lines[2:]:
+                    line.set_visible(not hide_lines)
+                # if i == 5 and legend_outside:
+                #     a.legend(
+                #         fontsize=14,
+                #         title_fontsize="14",
+                #         bbox_to_anchor=(1.05, 1),
+                #         loc="upper left",
+                #         borderaxespad=0.0,
+                #     )
+                if direct_b is not None:
+                    a.axhline(
+                        y=direct_b[c], lw=0.7, color=colors["Direct Training on Eval"]
                     )
-                ax.axhline(y=direct_b[c], lw=0.7, color="brown")
-                ax.axvline(x=direct_a[df.columns[i - 1]], lw=0.8, color="red")
-                min_x = min(min_x, ax.get_xlim()[0])
-                min_y = min(min_y, ax.get_ylim()[0])
-                max_x = max(max_x, ax.get_xlim()[1])
-                max_y = max(max_y, ax.get_ylim()[1])
-                ax.set_title(self.name_map(ax.get_xlabel()), fontweight="bold")
-                ax.set_xlabel(self.name_map(ax.get_xlabel().split("->")[1], "A: "))
-                ax.set_ylabel(self.name_map(ax.get_ylabel(), "B: "))
+                if direct_a is not None:
+                    a.axvline(
+                        x=direct_a[df.columns[i - 1]],
+                        lw=0.7,
+                        color=colors["Direct Training on Target"],
+                    )
+                min_x = min(min_x, a.get_xlim()[0])
+                min_y = min(min_y, a.get_ylim()[0])
+                max_x = max(max_x, a.get_xlim()[1])
+                max_y = max(max_y, a.get_ylim()[1])
+                if title:
+                    a.set_title(self.name_map(a.get_xlabel()), fontweight="bold")
+                a.set_xlabel(
+                    self.name_map(a.get_xlabel().split("->")[1], "Target Task: ")
+                )
+                a.set_ylabel(self.name_map(a.get_ylabel(), "Evaluation: "))
 
-        axs[-1][-1].axis("off")
 
-        for i in range(len(axs)):
-            for j in range(len(axs[i])):
+        for i in range(len(ax)):
+            for j in range(len(ax[i])):
                 # axs[i][j].set_xlim([min_x,max_x])
-                axs[i][j].set_ylim([min_y, max_y])
+                ax[i][j].set_ylim([min_y, max_y])
 
-        sns.despine(offset=5, trim=False)
-        plt.subplots_adjust(hspace=0.4)
-        if "talk" in style:
-            if legend_outside:
-                pass
-                # ax.legend(
-                #     fontsize=14,
-                #     title_fontsize="14",
-                #     bbox_to_anchor=(1.05, 1),
-                #     loc="upper left",
-                #     borderaxespad=0.0,
-                # )
-            else:
-                plt.legend(fontsize=14, title_fontsize="14")
-        elif legend_outside:
-            plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0.0)
-        if save:
-            save_plot(
-                fig,
-                save + "_" + style,
-                types=("png", "pdf", "pgf") if "nips" in style else ("png",),
-            )
+        # sns.despine(offset=5, trim=False)
+        # plt.subplots_adjust(hspace=0.4)
+        # if "talk" in style:
+        #     if legend_outside:
+        #         pass
+        #         # ax.legend(
+        #         #     fontsize=14,
+        #         #     title_fontsize="14",
+        #         #     bbox_to_anchor=(1.05, 1),
+        #         #     loc="upper left",
+        #         #     borderaxespad=0.0,
+        #         # )
+        #     else:
+        #         plt.legend(fontsize=14, title_fontsize="14")
+        # elif legend_outside:
+        #     plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0.0)
+        # if save:
+        #     save_plot(
+        #         fig,
+        #         save + "_" + style,
+        #         types=("png", "pdf", "pgf") if "nips" in style else ("png",),
+        #     )
