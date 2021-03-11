@@ -2,6 +2,7 @@ from .noise_adv_training import NoiseAdvTraining
 from .noise_augmentation import NoiseAugmentation
 from .random_readout_reset import RandomReadoutReset
 from .representation_matching import RepresentationMatching
+from .representation_monitor import RepresentationMonitor
 from .lottery_ticket_pruning import LotteryTicketPruning
 from .model_wrapper import ModelWrapper
 from .synaptic_intelligence import SynapticIntelligence

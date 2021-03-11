@@ -46,7 +46,7 @@ class RepresentationMatching(NoiseAugmentation):
         self.tracker.add_objectives(objectives)
 
     def pre_forward(self, model, inputs, task_key, shared_memory):
-        if not self.options.get("rep_matching",True):
+        if not self.options.get("rep_matching", True):
             model, inputs = super().pre_forward(model, inputs, task_key, shared_memory)
             return model, inputs
         self.batch_size = inputs.shape[0]
@@ -83,7 +83,7 @@ class RepresentationMatching(NoiseAugmentation):
         return model, inputs
 
     def post_forward(self, outputs, loss, targets, **shared_memory):
-        if not self.options.get("rep_matching",True):
+        if not self.options.get("rep_matching", True):
             return outputs, loss, targets
         extra_outputs, outputs = outputs[0], outputs[1]
         rep_match_losses = torch.zeros((len(self.reps),), device=self.device)
@@ -96,10 +96,12 @@ class RepresentationMatching(NoiseAugmentation):
                 rep_2 = self.lin2(F.relu(self.lin1(rep_2.flatten(start_dim=1))))
             # Compute the loss:
             if isinstance(self.criterion, nn.CosineEmbeddingLoss):
-                o = torch.ones(
-                    rep_1.shape[:1], device=self.device
+                ones = torch.ones(
+                    [rep_1.shape[0]], device=self.device
                 )  # ones indicating that we want to measure similarity
-                sim_loss = self.criterion(rep_1, rep_2, o)
+                sim_loss = self.criterion(
+                    rep_1.flatten(start_dim=1), rep_2.flatten(start_dim=1), ones
+                )
             else:
                 sim_loss = self.criterion(rep_1, rep_2)
             rep_match_losses[i] = sim_loss
@@ -122,7 +124,8 @@ class RepresentationMatching(NoiseAugmentation):
             (self.mode, "RepresentationMatching", "loss"),
         )
         self.tracker.log_objective(
-            num_inputs, (self.mode, "RepresentationMatching", "normalization"),
+            num_inputs,
+            (self.mode, "RepresentationMatching", "normalization"),
         )
         # Remove rep-matching duplicates from outputs
         outputs = outputs[: self.batch_size]

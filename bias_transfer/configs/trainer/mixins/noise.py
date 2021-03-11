@@ -93,3 +93,23 @@ class RepresentationMatchingMixin(BaseConfig):
         ):
             self.main_loop_modules.append("RepresentationMatching")
         super().conditional_assignment()
+
+
+class RepresentationMonitorMixin(BaseConfig):
+    def __init__(self, **kwargs):
+        self.load_kwargs(**kwargs)
+
+        self.representation_monitor = {
+            "DEFAULT EMPTY": True,
+            "representation": "conv_rep",
+        }
+
+        super().__init__(**kwargs)
+
+    def conditional_assignment(self):
+        if (
+            self.representation_monitor
+            and not "RepresentationMonitor" in self.main_loop_modules
+        ):
+            self.main_loop_modules.append("RepresentationMonitor")
+        super().conditional_assignment()
