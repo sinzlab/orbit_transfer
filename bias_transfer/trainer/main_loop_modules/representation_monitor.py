@@ -20,6 +20,8 @@ class RepresentationMonitor(MainLoopModule):
         self.tracker.add_objectives(objectives)
 
     def post_forward(self, outputs, loss, targets, **shared_memory):
+        if not self.options.get("rep_monitoring", True):
+            return outputs, loss, targets
         extra_outputs, outputs = outputs[0], outputs[1]
         batch_size = outputs.shape[0]
         rep_magnitudes = torch.zeros(
