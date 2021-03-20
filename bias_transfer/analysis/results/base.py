@@ -43,7 +43,6 @@ class Analyzer:
                         to_plot[-1]: tracker[l].get_objective(*to_plot),
                     }
                     row_list.append(row)
-                    print(desc.name, row)
                 except:
                     print("skipping", desc.name)
         df = pd.DataFrame(row_list)
@@ -52,7 +51,7 @@ class Analyzer:
         df = df[to_plot[-1]].apply(pd.Series)
         df = df.stack().reset_index()
         df.columns = ["Training", "Epoch", to_plot[-1]]
-        sns.lineplot(x="Epoch", y=to_plot[-1], hue="Training", data=df, ax=ax)
+        sns.lineplot(x="Epoch", y=to_plot[-1], hue="Training", data=df, ax=ax[0][0])
 
     @plot
     def plot_comparison_line(
