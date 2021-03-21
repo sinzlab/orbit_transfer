@@ -1,12 +1,14 @@
 from functools import partial
 
-from bias_transfer.trainer.utils.checkpointing import (
+from nntransfer.trainer.utils.checkpointing import (
     RemoteCheckpointing,
     LocalCheckpointing,
 )
-from bias_transfer.trainer.trainer import Trainer
-from bias_transfer.trainer.utils import get_subdict, stringify
-from bias_transfer.trainer.utils.loss import *
+from nntransfer.trainer.trainer import Trainer
+from nntransfer.trainer.utils import get_subdict, stringify
+from nntransfer.trainer.utils.loss import *
+from .main_loop_modules import *
+from nntransfer.trainer.main_loop_modules import *
 from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
 
 from torch import nn, optim
@@ -19,6 +21,12 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
 class ImgClassificationTrainer(Trainer):
     checkpointing_cls = LocalCheckpointing
+
+    @property
+    def main_loop_modules(self):
+        return [
+            globals().get(k)(trainer=self) for k in self.config.main_loop_modules
+        ]
 
     @property
     def tracker(self):

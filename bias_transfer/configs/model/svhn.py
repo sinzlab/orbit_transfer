@@ -1,7 +1,7 @@
-from bias_transfer.configs.model.classification import Classification
+from bias_transfer.configs.model.classification import ClassificationModel
 
 
-class SVHN(Classification):
+class SVHNModel(ClassificationModel):
     def __init__(self, **kwargs):
         self.load_kwargs(**kwargs)
         self.input_size: int = 32

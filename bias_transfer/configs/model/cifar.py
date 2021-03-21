@@ -1,7 +1,7 @@
-from bias_transfer.configs.model.classification import Classification
+from bias_transfer.configs.model.classification import ClassificationModel
 
 
-class CIFAR100(Classification):
+class CIFAR100Model(ClassificationModel):
     def __init__(self, **kwargs):
         self.load_kwargs(**kwargs)
         self.input_channels: int = 3
@@ -10,7 +10,7 @@ class CIFAR100(Classification):
         super().__init__(**kwargs)
 
 
-class CIFAR10(Classification):
+class CIFAR10Model(ClassificationModel):
     def __init__(self, **kwargs):
         self.load_kwargs(**kwargs)
         self.input_channels: int = 3

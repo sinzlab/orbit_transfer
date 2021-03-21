@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from bias_transfer.models.utils import concatenate_flattened
+from nntransfer.models.utils import concatenate_flattened
 
 
 class BayesLinear(nn.Module):

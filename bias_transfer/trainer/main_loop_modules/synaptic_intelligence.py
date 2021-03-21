@@ -1,4 +1,4 @@
-from .main_loop_module import MainLoopModule
+from nntransfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 
 
 class SynapticIntelligence(MainLoopModule):

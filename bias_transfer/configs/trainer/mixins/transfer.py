@@ -1,6 +1,6 @@
 from typing import Dict, Tuple
 
-from bias_transfer.configs.base import BaseConfig
+from nntransfer.configs.base import BaseConfig
 
 
 class DataGenerationMixin(BaseConfig):

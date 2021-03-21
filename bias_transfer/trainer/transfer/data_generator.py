@@ -6,12 +6,12 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bias_transfer.dataset.dataset_classes.npy_dataset import NpyDataset
+from nntransfer.trainer.trainer import Trainer
+from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from bias_transfer.trainer.main_loop_modules.fisher_estimation import FisherEstimation
 from bias_transfer.trainer.main_loop_modules.function_regularization.fromp import FROMP
 from bias_transfer.trainer.regression_trainer import RegressionTrainer
-from bias_transfer.trainer.trainer import Trainer
 from bias_transfer.trainer.transfer.coreset_extraction import extract_coreset
 
 

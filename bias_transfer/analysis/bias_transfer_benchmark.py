@@ -2,8 +2,8 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from .base import Analyzer
-from ..plot import plot
+from nntransfer.analysis.results.base import Analyzer
+from nntransfer.analysis.plot import plot
 
 
 class BiasTransferAnalyzer(Analyzer):

@@ -2,7 +2,7 @@ from torch import nn
 import torch
 
 from . import RepresentationRegularization
-from ...utils import arctanh
+from nntransfer.trainer.utils import arctanh
 
 
 class RDL(RepresentationRegularization):

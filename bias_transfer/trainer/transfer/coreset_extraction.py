@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 
-from bias_transfer.dataset.dataset_classes.npy_dataset import NpyDataset
+from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
 from bias_transfer.trainer.main_loop_modules.function_regularization.fromp_utils import (
     logistic_hessian,
     softmax_hessian,

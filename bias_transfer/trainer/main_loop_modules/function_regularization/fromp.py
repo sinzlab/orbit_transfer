@@ -10,7 +10,7 @@ from bias_transfer.trainer.main_loop_modules.function_regularization.fromp_utils
     parameter_grads_to_vector,
     vector_to_parameter_grads,
 )
-from bias_transfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
+from nntransfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 from neuralpredictors.training import eval_state
 
 

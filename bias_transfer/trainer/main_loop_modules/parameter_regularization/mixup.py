@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 
-from bias_transfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
+from nntransfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 
 
 class Mixup(MainLoopModule):

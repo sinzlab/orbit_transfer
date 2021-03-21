@@ -1,5 +1,5 @@
-from bias_transfer.configs.base import BaseConfig
-from bias_transfer.tables.nnfabrik import Dataset
+from nntransfer.configs.base import BaseConfig
+from nntransfer.tables.nnfabrik import Dataset
 
 
 class Generated(BaseConfig):

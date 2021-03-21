@@ -5,7 +5,7 @@ from functools import partial
 
 import torch
 
-from bias_transfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
+from nntransfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 
 
 class VCL(MainLoopModule):

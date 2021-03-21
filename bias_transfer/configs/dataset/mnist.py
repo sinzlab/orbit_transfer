@@ -1,4 +1,4 @@
-from bias_transfer.configs.dataset.image import ImageDatasetConfig
+from nntransfer.configs.dataset.image import ImageDatasetConfig
 
 
 class MNIST(ImageDatasetConfig):

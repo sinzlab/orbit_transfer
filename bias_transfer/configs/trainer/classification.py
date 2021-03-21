@@ -1,4 +1,4 @@
-from bias_transfer.configs.trainer.base import TrainerConfig
+from nntransfer.configs.trainer.base import TrainerConfig
 
 
 class Classification(TrainerConfig):

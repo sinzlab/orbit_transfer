@@ -1,9 +1,10 @@
 import torch
 from torch.utils.data import TensorDataset
 
-from bias_transfer.dataset import img_dataset_loader
-from bias_transfer.dataset.dataset_classes.combined_dataset import ParallelDataset
-from bias_transfer.dataset.dataset_classes.npy_dataset import NpyDataset
+from bias_transfer.dataset import base_loader
+from nntransfer.dataset.dataset_classes.combined_dataset import ParallelDataset
+from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
+
 
 def load_npy(postfix, data_key, transfer_data, data_loaders, main_data_loader):
     transferred_dataset = NpyDataset(
@@ -19,7 +20,7 @@ def load_npy(postfix, data_key, transfer_data, data_loaders, main_data_loader):
     )
 
 
-def transferred_dataset_loader(seed, primary_dataset_fn=img_dataset_loader, **config):
+def transferred_dataset_loader(seed, primary_dataset_fn=base_loader, **config):
     transfer_data_file = config.pop("transfer_data")
     transfer_data = {k: transfer_data_file[k] for k in transfer_data_file.files}
 

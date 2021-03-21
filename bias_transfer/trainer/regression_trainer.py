@@ -1,6 +1,6 @@
-from bias_transfer.trainer.utils.checkpointing import RemoteCheckpointing
+from nntransfer.trainer.utils.checkpointing import RemoteCheckpointing
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
-from bias_transfer.trainer.utils import get_subdict, arctanh
+from nntransfer.trainer.utils import get_subdict, arctanh
 from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
 
 

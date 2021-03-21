@@ -1,7 +1,7 @@
-from bias_transfer.configs.model.classification import Classification
+from bias_transfer.configs.model.classification import ClassificationModel
 
 
-class MNIST(Classification):
+class MNISTModel(ClassificationModel):
     def __init__(self, **kwargs):
         self.load_kwargs(**kwargs)
         self.type: str = "lenet5"
@@ -12,7 +12,7 @@ class MNIST(Classification):
         super().__init__(**kwargs)
 
 
-class MNISTIB(MNIST):
+class MNISTIBModel(MNISTModel):
     def __init__(self, **kwargs):
         self.load_kwargs(**kwargs)
         self.bias: str = "clean"

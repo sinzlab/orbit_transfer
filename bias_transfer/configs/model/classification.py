@@ -1,9 +1,9 @@
 from typing import Dict, Tuple
 
-from .base import ModelConfig
+from nntransfer.configs.model.base import ModelConfig
 
 
-class Classification(ModelConfig):
+class ClassificationModel(ModelConfig):
     fn = "bias_transfer.models.classification_model_builder"
 
     def __init__(self, **kwargs):
