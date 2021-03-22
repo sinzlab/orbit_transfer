@@ -9,7 +9,8 @@ from nntransfer.trainer.utils import get_subdict, stringify
 from nntransfer.trainer.utils.loss import *
 from .main_loop_modules import *
 from nntransfer.trainer.main_loop_modules import *
-from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
+# from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
+from nntransfer.trainer.utils.tracking import AdvancedMultipleObjectiveTracker
 
 from torch import nn, optim
 

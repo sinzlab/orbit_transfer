@@ -1,7 +1,8 @@
 from nntransfer.trainer.utils.checkpointing import RemoteCheckpointing
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from nntransfer.trainer.utils import get_subdict, arctanh
-from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
+# from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
+from nntransfer.trainer.utils.tracking import AdvancedMultipleObjectiveTracker
 
 
 def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
