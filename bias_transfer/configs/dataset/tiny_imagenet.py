@@ -16,7 +16,8 @@ class TinyImageNet(ImageDatasetConfig):
         self.load_kwargs(**kwargs)
         self.dataset_cls: str = "TinyImageNet"
         self.data_dir: str = "./data/image_classification/"
-        self.input_size: int = 64
+        self.input_width: int = 64
+        self.input_height: int = 64
         self.num_workers: int = 2
         self.valid_size: int = 0.1
         super().__init__(**kwargs)

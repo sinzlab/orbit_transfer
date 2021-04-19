@@ -3,14 +3,15 @@ from nntransfer.dataset.img_dataset_loader import (
     ImageDatasetLoader as BaseImageLoader,
 )
 
+
 class ImageDatasetLoader(BaseImageLoader):
     def get_transforms(self, config):
         transform_train = [
             transforms.ToPILImage()
             if config.dataset_cls == "CIFAR10-Semisupervised"
-            or config.dataset_cls == "MNIST-IB"
+            or config.dataset_cls == "MNIST-Transfer"
             else None,
-            transforms.RandomCrop(config.input_size, padding=4)
+            transforms.RandomCrop((config.input_height, config.input_width), padding=4)
             if config.apply_augmentation
             else None,
             transforms.RandomHorizontalFlip() if config.apply_augmentation else None,
@@ -29,7 +30,7 @@ class ImageDatasetLoader(BaseImageLoader):
         transform_val = [
             transforms.ToPILImage()
             if config.dataset_cls == "CIFAR10-Semisupervised"
-            or config.dataset_cls == "MNIST-IB"
+            or config.dataset_cls == "MNIST-Transfer"
             else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
@@ -41,7 +42,7 @@ class ImageDatasetLoader(BaseImageLoader):
             else None,
         ]
         transform_test = [
-            transforms.ToPILImage() if config.dataset_cls == "MNIST-IB" else None,
+            transforms.ToPILImage() if config.dataset_cls == "MNIST-Transfer" else None,
             transforms.Grayscale() if config.apply_grayscale else None,
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1))

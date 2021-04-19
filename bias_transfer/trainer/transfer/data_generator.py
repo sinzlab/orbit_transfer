@@ -19,6 +19,7 @@ class DataGenerator(Trainer):
     def __init__(self, dataloaders, model, seed, uid, cb, **kwargs):
         super().__init__(dataloaders, model, seed, uid, cb, **kwargs)
         self.main_task = list(self.task_keys)[0]
+        print(self.main_loop_modules)  # to initialize this, we need to access this property once
 
     def train(self):
         self.tracker.start_epoch()
@@ -99,7 +100,7 @@ class DataGenerator(Trainer):
             "Generation": {task_key: {"loss": 0, "accuracy": 0, "normalization": 0}},
         }
         self.tracker.add_objectives(objectives, init_epoch=True)
-        self.main_loop_modules.append(FisherEstimation(trainer=self))
+        self._main_loop_modules.append(FisherEstimation(trainer=self))
         self.main_loop(
             data_loader={task_key: data_loader},
             epoch=0,

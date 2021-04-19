@@ -3,13 +3,13 @@ import numpy as np
 from torch.hub import load_state_dict_from_url
 
 from nnfabrik.utility.nn_helpers import load_state_dict
-from nnvision.models.models import se_core_gauss_readout, se_core_point_readout
 
 
 from nntransfer.models.resnet import resnet_builder
 from nntransfer.models.utils import get_model_parameters
 from nntransfer.models.vgg import vgg_builder
 from nntransfer.models.lenet import lenet_builder
+
 # from nntransfer.models.mlp import MLP
 from nntransfer.models.wrappers import *
 
@@ -18,6 +18,7 @@ from bias_transfer.configs.model import (
 )
 from .lenet_bayesian import lenet_builder as bayes_builder
 from .lenet_frcl import lenet_builder as frcl_builder
+from .linear import linear_builder
 
 
 def neural_cnn_builder(data_loaders, seed: int = 1000, **config):
@@ -29,38 +30,6 @@ def neural_cnn_builder(data_loaders, seed: int = 1000, **config):
         model = se_core_gauss_readout(dataloaders=data_loaders, seed=seed, **config)
     print("Model with {} parameters.".format(get_model_parameters(model)))
     return model
-
-#
-# def mtl_builder(data_loaders, seed: int = 1000, **config):
-#     config = MTL.from_dict(config)
-#     torch.manual_seed(seed)
-#     np.random.seed(seed)
-#
-#     from .mtl_vgg import MTL_VGG
-#
-#     model = MTL_VGG(
-#         data_loaders,
-#         vgg_type=config.vgg_type,
-#         classification=config.classification,
-#         classification_readout_type=config.classification_readout_type,
-#         input_size=config.input_size,
-#         num_classes=config.num_classes,
-#         pretrained=config.pretrained,
-#         v1_model_layer=config.v1_model_layer,
-#         neural_input_channels=config.neural_input_channels,
-#         classification_input_channels=config.classification_input_channels,
-#         v1_fine_tune=config.v1_fine_tune,
-#         v1_init_mu_range=config.v1_init_mu_range,
-#         v1_init_sigma_range=config.v1_init_sigma_range,
-#         v1_readout_bias=config.v1_readout_bias,
-#         v1_bias=config.v1_bias,
-#         v1_gamma_readout=config.v1_gamma_readout,
-#         v1_elu_offset=config.v1_elu_offset,
-#         v1_final_batchnorm=config.v1_final_batchnorm,
-#     )
-#
-#     print("Model with {} parameters.".format(get_model_parameters(model)))
-#     return model
 
 
 def classification_model_builder(data_loader, seed: int, **config):
@@ -80,6 +49,8 @@ def classification_model_builder(data_loader, seed: int, **config):
             model = frcl_builder(seed, config)
         else:
             model = lenet_builder(seed, config)
+    elif "linear" in config.type:
+        model = linear_builder(seed, config)
     else:
         raise Exception("Unknown type {}".format(config.type))
 
@@ -120,9 +91,11 @@ def classification_model_builder(data_loader, seed: int, **config):
                 n = n.replace(".", "__")
                 for b in config.add_buffer:
                     model.register_buffer(
-                        f"{n}_{b}", p.detach().clone().zero_(),
+                        f"{n}_{b}",
+                        p.detach().clone().zero_(),
                     )
     return model
+
 
 #
 # def regression_model_builder(data_loader, seed: int, **config):

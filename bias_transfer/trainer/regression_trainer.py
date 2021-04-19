@@ -1,8 +1,7 @@
 from nntransfer.trainer.utils.checkpointing import RemoteCheckpointing
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from nntransfer.trainer.utils import get_subdict, arctanh
-# from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
-from nntransfer.trainer.utils.tracking import AdvancedMultipleObjectiveTracker
+from neuralpredictors.training.tracking import AdvancedTracker
 
 
 def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
@@ -26,14 +25,12 @@ class RegressionTrainer(ImgClassificationTrainer):
                     "patience": 0,
                 },
             }
-            self._tracker = AdvancedMultipleObjectiveTracker(
+            self._tracker = AdvancedTracker(
                 main_objective=("regression", "loss"), **objectives
             )
             return self._tracker
 
-    def compute_loss(
-        self, mode, task_key, loss, outputs, targets,
-    ):
+    def compute_loss(self, mode, task_key, loss, outputs, targets):
         reg_loss = self.criterion["regression"](outputs.reshape((-1,)), targets)
         if self.config.scale_loss_with_arctanh:
             reg_loss = arctanh(reg_loss)
@@ -42,10 +39,12 @@ class RegressionTrainer(ImgClassificationTrainer):
         _, predicted = outputs.max(1)
         batch_size = targets.size(0)
         self.tracker.log_objective(
-            batch_size, keys=(mode, task_key, "normalization"),
+            batch_size,
+            key=(mode, task_key, "normalization"),
         )
         self.tracker.log_objective(
-            loss.item() * batch_size, keys=(mode, task_key, "loss"),
+            loss.item() * batch_size,
+            key=(mode, task_key, "loss"),
         )
         return loss
 
@@ -54,7 +53,15 @@ class RegressionTrainer(ImgClassificationTrainer):
             self.test_final_model(epoch, bn_train=" BN=Train")
         # test the final model on the test set
         for k in self.task_keys:
-            objectives = {"Test" + bn_train: {k: {"loss": 0, "normalization": 0,}}}
+            objectives = {
+                "Test"
+                + bn_train: {
+                    k: {
+                        "loss": 0,
+                        "normalization": 0,
+                    }
+                }
+            }
             self.tracker.add_objectives(objectives, init_epoch=True)
             test_result = self.main_loop(
                 epoch=epoch,

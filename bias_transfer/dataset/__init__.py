@@ -1,4 +1,5 @@
-from .mnist_ib_loader import mnist_ib_dataset_loader
+from .mnist_transfer_loader import mnist_transfer_dataset_loader
 from .torchvision_loader import torchvision_dataset_loader
 from .url_loader import url_dataset_loader
 from .transferred_dataset_loader import transferred_dataset_loader
+from .toy_loader import toy_dataset_loader

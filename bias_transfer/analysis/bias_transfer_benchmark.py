@@ -31,7 +31,7 @@ class BiasTransferAnalyzer(Analyzer):
                         l = levels.index(level)
                         if labels:
                             l = labels[l]
-                        row[l] = tracker.get_current_objective(*objective)
+                        row[l] = tracker.get_current_objective(objective)
                 except:
                     pass  # no valid entry for this objective
             row_list.append(row)
@@ -60,7 +60,12 @@ class BiasTransferAnalyzer(Analyzer):
 
     @plot
     def plot_frontier(
-        self, fig, ax, columns_range=(), title=False, hide_lines=False,
+        self,
+        fig,
+        ax,
+        columns_range=(),
+        title=False,
+        hide_lines=False,
     ):
         df = self.generate_table(last_n=2, label_steps=True)
         direct_a = (
@@ -82,23 +87,59 @@ class BiasTransferAnalyzer(Analyzer):
                     a = ax[i - 1 - columns_range[0]][i - 1 - columns_range[0]]
                 else:
                     a = ax[(i - 1) // 4][((i - 1) % 4) // 2]
-                colors = [
-                    "#a6cee3",
-                    "#1f78b4",
-                    "#b2df8a",
-                    "#33a02c",
-                    "#fb9a99",
-                    "#e31a1c",
-                    "#fdbf6f",
-                    "#ff7f00",
-                    "#cab2d6",
-                    "#6a3d9a",
-                    "#ffff99",
-                ]
-                models = sorted(list(set(df.index)))
-                print(models)
-                colors = dict(zip(models, colors[: len(models)]))
-                print(colors)
+                # colors = [
+                #     "#a6cee3",
+                #     "#1f78b4",
+                #     "#b2df8a",
+                #     "#33a02c",
+                #     "#fb9a99",
+                #     "#e31a1c",
+                #     "#fdbf6f",
+                #     "#ff7f00",
+                #     "#cab2d6",
+                #     "#6a3d9a",
+                #     "#ffff99",
+                # ]
+                colors = {
+                    "turquoise1": "#137155",
+                    "turquoise2": "#25D9A4",
+                    "turquoise3": "#B0D9CD",
+                    "orange1": "#924001",
+                    "orange2": "#F16A02",
+                    "orange3": "#F19854",
+                    "violet1": "#646099",
+                    "violet2": "#746BEB",
+                    "violet3": "#A59EF6",
+                    "pink1": "#CA0067",
+                    "pink2": "#F13897",
+                    "pink3": "#E767A8",
+                    "green1": "#1F4500",
+                    "green2": "#3D8600",
+                    "green3": "#90BC5E",
+                    "brown1": "#7D5916",
+                    "brown2": "#C98F23",
+                    "brown3": "#A38B5F",
+                    "grey1": "#353535",
+                    "grey2": "#666666",
+                    "grey3": "#9C9C9C",
+                }
+                color_assignment = {
+                    "Direct Training on Eval ": colors["grey1"],
+                    "Direct Training on Target ": colors["grey2"],
+                    "Finetune ": colors["orange1"],
+                    "Freeze ": colors["orange3"],
+                    "L2-SP ": colors["green1"],
+                    "KnowledgeDistillation ": colors["green3"],
+                    "EWC ": colors["brown1"],
+                    "SynapticIntelligence ": colors["turquoise1"],
+                    "VCL ": colors["violet1"],
+                    "FROMP ": colors["violet3"],
+                }
+
+                # models = sorted(list(set(df.index)))
+                # print(models)
+                # colors = dict(zip(models, colors[: len(models)]))
+                # print(colors)
                 plot_res = sns.lineplot(
                     data=df,
                     x=df.columns[i - 1],
@@ -108,7 +149,7 @@ class BiasTransferAnalyzer(Analyzer):
                     legend="brief",
                     style="name",
                     markers=True,
-                    palette=colors,
+                    palette=color_assignment,
                 )
                 for line in plot_res.lines[2:]:
                     line.set_visible(not hide_lines)
@@ -122,13 +163,13 @@ class BiasTransferAnalyzer(Analyzer):
                 #     )
                 if direct_b is not None:
                     a.axhline(
-                        y=direct_b[c], lw=0.7, color=colors["Direct Training on Eval"]
+                        y=direct_b[c], lw=0.7, color=color_assignment["Direct Training on Eval"]
                     )
                 if direct_a is not None:
                     a.axvline(
                         x=direct_a[df.columns[i - 1]],
                         lw=0.7,
-                        color=colors["Direct Training on Target"],
+                        color=color_assignment["Direct Training on Target"],
                     )
                 min_x = min(min_x, a.get_xlim()[0])
                 min_y = min(min_y, a.get_ylim()[0])
@@ -140,7 +181,6 @@ class BiasTransferAnalyzer(Analyzer):
                     self.name_map(a.get_xlabel().split("->")[1], "Target Task: ")
                 )
                 a.set_ylabel(self.name_map(a.get_ylabel(), "Evaluation: "))
-
 
         for i in range(len(ax)):
             for j in range(len(ax[i])):

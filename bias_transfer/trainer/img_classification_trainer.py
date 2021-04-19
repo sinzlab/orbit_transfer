@@ -9,8 +9,7 @@ from nntransfer.trainer.utils import get_subdict, stringify
 from nntransfer.trainer.utils.loss import *
 from .main_loop_modules import *
 from nntransfer.trainer.main_loop_modules import *
-# from neuralpredictors.tracking import AdvancedMultipleObjectiveTracker
-from nntransfer.trainer.utils.tracking import AdvancedMultipleObjectiveTracker
+from neuralpredictors.training.tracking import AdvancedTracker
 
 from torch import nn, optim
 
@@ -21,13 +20,15 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
 
 class ImgClassificationTrainer(Trainer):
-    checkpointing_cls = LocalCheckpointing
+    checkpointing_cls = RemoteCheckpointing
 
     @property
     def main_loop_modules(self):
-        return [
-            globals().get(k)(trainer=self) for k in self.config.main_loop_modules
-        ]
+        try:
+            return self._main_loop_modules
+        except AttributeError:
+            self._main_loop_modules = [globals().get(k)(trainer=self) for k in self.config.main_loop_modules]
+            return self._main_loop_modules
 
     @property
     def tracker(self):
@@ -48,7 +49,7 @@ class ImgClassificationTrainer(Trainer):
                     "patience": 0,
                 },
             }
-            self._tracker = AdvancedMultipleObjectiveTracker(
+            self._tracker = AdvancedTracker(
                 main_objective=("img_classification", "accuracy"), **objectives
             )
             return self._tracker
@@ -113,16 +114,16 @@ class ImgClassificationTrainer(Trainer):
                 _, predicted = outputs.max(1)
                 self.tracker.log_objective(
                     100 * predicted.eq(targets).sum().item(),
-                    keys=(mode, task_key, "accuracy"),
+                    key=(mode, task_key, "accuracy"),
                 )
             batch_size = targets.size(0)
             self.tracker.log_objective(
                 batch_size,
-                keys=(mode, task_key, "normalization"),
+                key=(mode, task_key, "normalization"),
             )
             self.tracker.log_objective(
                 loss.item() * batch_size,
-                keys=(mode, task_key, "loss"),
+                key=(mode, task_key, "loss"),
             )
         return loss
 

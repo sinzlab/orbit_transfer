@@ -20,6 +20,16 @@ class ParamDistance(MainLoopModule):
         self.warned = False
         self.alpha = self.config.regularization.get("alpha", 1.0)
         self.ignore_layers = self.config.regularization.get("ignore_layers", ())
+        self.use_full_importance = self.config.regularization.get(
+            "use_full_importance", False
+        )
+        custom_importance = self.config.regularization.get("custom_importance", {})
+        if custom_importance:
+            for n, param in self.trainer.model.named_parameters():
+                n_ = n.replace(".", "__")
+                importance = torch.from_numpy(custom_importance[n_]).to(self.device)
+                self.trainer.model.register_buffer(f"{n}_importance", importance)
+
         objectives = {  # TODO: make adaptable to other tasks!
             "Training": {"img_classification": {"P-Dist": 0}},
             "Validation": {"img_classification": {"P-Dist": 0}},
@@ -41,8 +51,17 @@ class ParamDistance(MainLoopModule):
                     if l in n:
                         continue
                 n_ = n.replace(".", "__")
-                importance = getattr(model, f"{n_}_importance", 1.0)
-                distance = (importance * (param - self.sp_state_dict[n]) ** 2).sum()
+                importance = getattr(model, f"{n_}_importance", torch.tensor(1.0))
+                if self.use_full_importance:
+                    param = param.flatten()
+                    starting_point = self.sp_state_dict[n].flatten()
+                    distance = (
+                        (param - starting_point)
+                        @ importance
+                        @ (param - starting_point).t()
+                    ).squeeze()
+                else:
+                    distance = (importance * (param - self.sp_state_dict[n]) ** 2).sum()
                 reg_loss = reg_loss + distance
             loss += self.alpha * reg_loss
             self.tracker.log_objective(

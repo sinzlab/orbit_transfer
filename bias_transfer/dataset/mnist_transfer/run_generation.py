@@ -4,21 +4,24 @@ from . import generate_and_save
 
 
 def main(dataset="FashionMNIST"):
-    for bias in ["clean",
-                 "color",
-                 "color_shuffle",
-                 "translation",
-                 "rotation",
-                 "rotation_regression",
-                 "noise",
-                 # "addition"
-                 ]:
+    for bias in [
+        # "clean",
+        # "color",
+        # "color_shuffle",
+        # "translation",
+        # "rotation",
+        # "rotation_regression",
+        # "noise",
+        "addition_regression",
+        "scale",
+        "addition_regression_noise",
+    ]:
         generate_and_save(
-            bias, base_path="/work/data/image_classification/torchvision/",dataset=dataset
+            bias, base_path="./data/image_classification/torchvision/", dataset=dataset
         )
         train_tensor = np.load(
             os.path.join(
-                f"/work/data/image_classification/torchvision/{dataset}-IB",
+                f"./data/image_classification/torchvision/{dataset}-Transfer",
                 f"{bias}_train_source.npy",
             )
         )

@@ -1,19 +1,20 @@
 import os
 
 import torch
-from bias_transfer.dataset.MNIST_IB import generate_and_save
+from bias_transfer.dataset.mnist_transfer import generate_and_save
 from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
 
 from bias_transfer.dataset.base_loader import ImageDatasetLoader
 
 
-class MNISTIBDatasetLoader(ImageDatasetLoader):
+class MNISTTransferDatasetLoader(ImageDatasetLoader):
     def get_datasets(self, config, transform_test, transform_train, transform_val):
-        if config.dataset_cls == "MNIST-IB":
-            dataset_dir = os.path.join(config.data_dir, config.dataset_sub_cls + "-IB")
+        if config.dataset_cls == "MNIST-Transfer":
+            dataset_dir = os.path.join(config.data_dir, config.dataset_sub_cls + "-Transfer")
             generate_and_save(
                 config.bias, base_path=config.data_dir, dataset=config.dataset_sub_cls
             )
+            print(f"Loading: {config.bias}")
             train_dataset = NpyDataset(
                 f"{config.bias}_train_source.npy",
                 f"{config.bias}_train_target.npy",
@@ -56,4 +57,4 @@ class MNISTIBDatasetLoader(ImageDatasetLoader):
         )
 
 
-mnist_ib_dataset_loader = MNISTIBDatasetLoader()
+mnist_transfer_dataset_loader = MNISTTransferDatasetLoader()
