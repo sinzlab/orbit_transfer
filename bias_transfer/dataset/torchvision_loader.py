@@ -2,6 +2,7 @@ import torchvision
 import torchvision.transforms as transforms
 
 from bias_transfer.dataset.base_loader import ImageDatasetLoader
+from nntransfer.dataset.utils import get_dataset
 
 
 class TorchvisionDatasetLoader(ImageDatasetLoader):
@@ -68,6 +69,14 @@ class TorchvisionDatasetLoader(ImageDatasetLoader):
             config.dataset_cls in list(torchvision.datasets.__dict__.keys())
             and config.dataset_cls != "ImageNet"
         ):
+            if config.dataset_cls == "MNIST":
+                #download MNIST
+                get_dataset(
+                    "http://www.di.ens.fr/~lelarge/MNIST.tar.gz",
+                    config.data_dir,
+                    dataset_cls=config.dataset_cls,
+                )
+
             dataset_cls = eval("torchvision.datasets." + config.dataset_cls)
             kwargs = {
                 "root": config.data_dir,

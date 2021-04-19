@@ -5,11 +5,18 @@ from bias_transfer.dataset.mnist_transfer import generate_and_save
 from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
 
 from bias_transfer.dataset.base_loader import ImageDatasetLoader
+from nntransfer.dataset.utils import get_dataset
 
 
 class MNISTTransferDatasetLoader(ImageDatasetLoader):
     def get_datasets(self, config, transform_test, transform_train, transform_val):
         if config.dataset_cls == "MNIST-Transfer":
+            #download MNIST
+            get_dataset(
+                "http://www.di.ens.fr/~lelarge/MNIST.tar.gz",
+                config.data_dir,
+                dataset_cls="MNIST",
+            )
             dataset_dir = os.path.join(config.data_dir, config.dataset_sub_cls + "-Transfer")
             generate_and_save(
                 config.bias, base_path=config.data_dir, dataset=config.dataset_sub_cls
