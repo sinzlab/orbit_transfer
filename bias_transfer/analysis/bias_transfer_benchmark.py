@@ -134,6 +134,7 @@ class BiasTransferAnalyzer(Analyzer):
                     "SynapticIntelligence ": colors["turquoise1"],
                     "VCL ": colors["violet1"],
                     "FROMP ": colors["violet3"],
+                    "RDL ": colors["pink1"],
                 }
 
                 # models = sorted(list(set(df.index)))

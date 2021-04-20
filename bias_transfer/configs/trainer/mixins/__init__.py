@@ -5,3 +5,4 @@ from .noise import (
     RepresentationMonitorMixin,
     NoiseAugmentationMixin,
 )
+from .simclr import SimclrMixin

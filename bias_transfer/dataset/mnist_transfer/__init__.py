@@ -13,6 +13,7 @@ from .expansion import apply_expansion
 from .noise import apply_gaussian_noise
 from .color import apply_color, get_color_codes
 from .scale import apply_scale
+from .subsample import Subsample
 from .translation import apply_translation
 from .rotation import apply_rotation
 from .shuffle import apply_label_shuffle
@@ -28,8 +29,9 @@ def generate_dataset(data_loader, transform_fs=(), options=()):
             if transform_f is None:
                 continue
             source, target = transform_f(source, target, **options[t])
-        new_ds_source.append(source)
-        new_ds_target.append(target)
+        if source is not None and target is not None:
+            new_ds_source.append(source)
+            new_ds_target.append(target)
     new_ds_source = np.concatenate(new_ds_source)
     new_ds_target = np.concatenate(new_ds_target)
     return new_ds_source, new_ds_target
@@ -80,6 +82,7 @@ bias_dict = {
     "addition_regression": ((apply_additon,), ({},)),
     "addition_regression_noise": ((apply_additon, apply_gaussian_noise), ({}, {"severity": -1})),
     "clean": ((None,), ({},)),
+    "low_resource": ((Subsample(total_per_class=100),), ({},)),
     "clean_shuffle": ((apply_label_shuffle,), ({},)),
     "scale": ((apply_scale,), ({},)),
 }
@@ -135,6 +138,7 @@ def generate_and_save(
         transform_fs=(apply_expansion, *apply_bias),
         options=({}, *bias_options),
     )
+    Subsample.active = False  # in case we are using this, we need to deactivate for test set
     test_ds = generate_dataset(
         data_loader=test_loader,
         transform_fs=(apply_expansion, *apply_bias),

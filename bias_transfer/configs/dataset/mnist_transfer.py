@@ -85,7 +85,7 @@ class MNISTTransfer(ImageDatasetConfig):
         self.input_height: int = 40
         # self.filter_classes: tuple = ()  # would be used for split MNIST
         # self.reduce_to_filtered_classes = False
-        self.apply_data_normalization: bool = False
-        self.apply_data_augmentation: bool = False
+        self.apply_normalization: bool = False
+        self.apply_augmentation: bool = False
         self.add_corrupted_test: bool = False
         super().__init__(**kwargs)

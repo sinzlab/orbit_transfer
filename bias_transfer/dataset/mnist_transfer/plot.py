@@ -12,7 +12,8 @@ def plot_batch(batch, targets, n_rows, n_cols, name="", file_type="png"):
     for r in range(n_rows):
         for c in range(n_cols):
             axs[r][c].imshow(batch[r * n_cols + c].squeeze())
-            axs[r][c].set_title(int(targets[r * n_cols + c]))
+            if targets is not None:
+                axs[r][c].set_title(int(targets[r * n_cols + c]))
             axs[r][c].set_axis_off()
     plt.show()
     if name:
