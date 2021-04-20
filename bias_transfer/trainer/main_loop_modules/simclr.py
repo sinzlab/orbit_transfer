@@ -5,6 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch
 import numpy as np
+from torch.utils.data import Dataset
 from torchvision.transforms import RandomResizedCrop, Compose, ToTensor, ToPILImage
 
 from bias_transfer.dataset.mnist_transfer.plot import plot_batch
@@ -28,7 +29,12 @@ class SIMCLR(MainLoopModule):
         #     view_transforms.append(GaussianBlur(kernel_size=3))
 
         for loader in trainer.data_loaders.values():
-            transforms = loader["img_classification"].dataset.transform.transforms
+            dataset = loader["img_classification"].dataset
+            while not hasattr(dataset, "transform") and hasattr(dataset, "dataset"):
+                dataset = dataset.dataset
+            if isinstance(dataset.transform, ContrastiveLearningViewGenerator):
+                continue
+            transforms = dataset.transform.transforms
             insert_before = 0
             while not isinstance(transforms[insert_before], ToTensor):
                 insert_before += 1
@@ -48,7 +54,7 @@ class SIMCLR(MainLoopModule):
             transform = ContrastiveLearningViewGenerator(
                 transform, n_views=self.n_views
             )
-            loader["img_classification"].dataset.transform = transform
+            dataset.transform = transform
 
         core_out_dim = getattr(model, self.core_out).out_features
         self.lin1 = nn.Linear(core_out_dim, 50, bias=False).to(self.device)
