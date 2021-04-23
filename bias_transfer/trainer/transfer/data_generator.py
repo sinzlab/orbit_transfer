@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
+from nntransfer.models.wrappers import IntermediateLayerGetter
 from nntransfer.trainer.trainer import Trainer
 from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
@@ -19,7 +20,9 @@ class DataGenerator(Trainer):
     def __init__(self, dataloaders, model, seed, uid, cb, **kwargs):
         super().__init__(dataloaders, model, seed, uid, cb, **kwargs)
         self.main_task = list(self.task_keys)[0]
-        print(self.main_loop_modules)  # to initialize this, we need to access this property once
+        print(
+            self.main_loop_modules
+        )  # to initialize this, we need to access this property once
 
     def train(self):
         self.tracker.start_epoch()
@@ -60,6 +63,9 @@ class DataGenerator(Trainer):
 
         if self.config.reset_for_new_task:
             self.model.reset_for_new_task()
+
+        if isinstance(self.model, IntermediateLayerGetter):
+            self.model = self.model._model
         return 0.0, {"transfer_data": train}, self.model.state_dict()
 
     def generate_rep_dataset(self, data):
@@ -148,9 +154,13 @@ class DataGenerator(Trainer):
                 omega_new = omega / (p_change ** 2 + damping_factor)
 
                 # Store these new values in the model
-                self.model.register_buffer(f"{n}_importance", omega_new)
                 delattr(self.model, f"{n}_SI_omega")
                 delattr(self.model, f"{n}_SI_prev_task")
+                if isinstance(self.model, IntermediateLayerGetter):
+                    n = n[len("_model__") :]
+                    self.model._model.register_buffer(f"{n}_importance", omega_new)
+                else:
+                    self.model.register_buffer(f"{n}_importance", omega_new)
 
     def bayesian_to_deterministic(self):
         print("Transform covariance into importance")
@@ -158,7 +168,7 @@ class DataGenerator(Trainer):
         params = dict(self.model.named_parameters())
         for n, p in params.items():
             if "_posterior_log_var" in n:
-                n_new = n[:-len("_posterior_log_var")]
+                n_new = n[: -len("_posterior_log_var")]
                 if n_new[-1] == "w":
                     n_new += "eight"
                 elif n_new[-1] == "b":
@@ -167,13 +177,14 @@ class DataGenerator(Trainer):
                 importance = 1 / p
                 self.model.register_buffer(f"{n_new}_importance", importance)
             if "_posterior_v" in n:
-                n_new = n[:-len("_posterior_v")]
+                n_new = n[: -len("_posterior_v")]
                 if n_new[-1] == "w":
                     n_new += "eight"
                 elif n_new[-1] == "b":
                     n_new += "ias"
                 n_new = n_new.replace(".", "__")
                 self.model.register_buffer(f"{n_new}_importance_v", p)
+
 
 class TransferDataGeneratorClassificiation(ImgClassificationTrainer, DataGenerator):
     pass

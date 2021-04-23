@@ -1,3 +1,4 @@
+from nntransfer.models.wrappers import IntermediateLayerGetter
 from nntransfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 import torch.nn.functional as F
 
@@ -57,6 +58,7 @@ class FisherEstimation(MainLoopModule):
             if p.requires_grad:
                 n = n.replace(".", "__")
                 # precision (approximated by diagonal Fisher Information matrix)
-                model.register_buffer(
-                    f"{n}_importance", est_fisher_info[n],
-                )
+                if isinstance(model, IntermediateLayerGetter):
+                    n_ = n[len("_model__") :]
+                    model._model.register_buffer(f"{n_}_importance", est_fisher_info[n])
+                model.register_buffer(f"{n}_importance", est_fisher_info[n])
