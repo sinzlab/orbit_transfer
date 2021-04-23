@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import TensorDataset
 
-from bias_transfer.dataset import base_loader
+from bias_transfer.dataset import mnist_transfer_dataset_loader
 from nntransfer.dataset.dataset_classes.combined_dataset import ParallelDataset
 from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
 
@@ -20,7 +20,10 @@ def load_npy(postfix, data_key, transfer_data, data_loaders, main_data_loader):
     )
 
 
-def transferred_dataset_loader(seed, primary_dataset_fn=base_loader, **config):
+def transferred_dataset_loader(
+    seed, primary_dataset_fn=mnist_transfer_dataset_loader, **config
+):
+    print("transferred data loader")
     transfer_data_file = config.pop("transfer_data")
     transfer_data = {k: transfer_data_file[k] for k in transfer_data_file.files}
 
@@ -33,12 +36,19 @@ def transferred_dataset_loader(seed, primary_dataset_fn=base_loader, **config):
 
     if "source_cs" in transfer_data:  # we have a coreset
         if config.get("train_on_coreset"):
+            print("We train on coreset")
             load_npy("_cs", main_task, transfer_data, data_loaders, main_data_loader)
         else:
             if config.get("train_on_reduced_data"):
                 load_npy("", main_task, transfer_data, data_loaders, main_data_loader)
             if config.get("load_coreset"):
-                load_npy("_cs", f"{main_task}_cs", transfer_data, data_loaders, main_data_loader)
+                load_npy(
+                    "_cs",
+                    f"{main_task}_cs",
+                    transfer_data,
+                    data_loaders,
+                    main_data_loader,
+                )
     else:
         datasets = {}
         for rep_name, rep_data in transfer_data.items():

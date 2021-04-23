@@ -103,16 +103,18 @@ class LeNet300100(nn.Module):
     def __init__(
         self,
         num_classes: int = 10,
-        input_size: int = 28,
+        input_height: int = 28,
+        input_width: int = 28,
         input_channels: int = 1,
         dropout: float = 0.0,
     ):
         super(LeNet300100, self).__init__()
-        self.fc1 = BayesLinear(input_size * input_size * input_channels, 300)
+        self.input_size = (input_height, input_width)
+        self.flat_input_size = input_width * input_height * input_channels
+        self.fc1 = BayesLinear(self.flat_input_size, 300)
         self.fc2 = BayesLinear(300, 100)
         self.fc3 = BayesLinear(100, num_classes)
         self.dropout = nn.Dropout(p=dropout) if dropout else None
-        self.flat_input_size = input_size * input_size * input_channels
 
     def forward(self, x, num_samples=1):
         x = x.view(x.size(0), self.flat_input_size)
@@ -186,7 +188,8 @@ def lenet_builder(seed: int, config):
     torch.cuda.manual_seed(seed)
     model = lenet(
         num_classes=config.num_classes,
-        input_size=config.input_size,
+        input_height=config.input_height,
+        input_width=config.input_width,
         input_channels=config.input_channels,
         dropout=config.dropout,
     )

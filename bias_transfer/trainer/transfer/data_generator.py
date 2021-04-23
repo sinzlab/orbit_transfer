@@ -55,10 +55,12 @@ class DataGenerator(Trainer):
             )
         elif self.config.compute_si_omega:
             self.compute_omega()
+        elif self.config.bayesian_to_deterministic:
+            self.bayesian_to_deterministic()
 
         if self.config.reset_for_new_task:
             self.model.reset_for_new_task()
-        return 0.0, {}, self.model.state_dict(), train
+        return 0.0, {"transfer_data": train}, self.model.state_dict()
 
     def generate_rep_dataset(self, data):
         _, collected_outputs = self.main_loop(
@@ -150,6 +152,28 @@ class DataGenerator(Trainer):
                 delattr(self.model, f"{n}_SI_omega")
                 delattr(self.model, f"{n}_SI_prev_task")
 
+    def bayesian_to_deterministic(self):
+        print("Transform covariance into importance")
+        # Loop over all parameters
+        params = dict(self.model.named_parameters())
+        for n, p in params.items():
+            if "_posterior_log_var" in n:
+                n_new = n[:-len("_posterior_log_var")]
+                if n_new[-1] == "w":
+                    n_new += "eight"
+                elif n_new[-1] == "b":
+                    n_new += "ias"
+                n_new = n_new.replace(".", "__")
+                importance = 1 / p
+                self.model.register_buffer(f"{n_new}_importance", importance)
+            if "_posterior_v" in n:
+                n_new = n[:-len("_posterior_v")]
+                if n_new[-1] == "w":
+                    n_new += "eight"
+                elif n_new[-1] == "b":
+                    n_new += "ias"
+                n_new = n_new.replace(".", "__")
+                self.model.register_buffer(f"{n_new}_importance_v", p)
 
 class TransferDataGeneratorClassificiation(ImgClassificationTrainer, DataGenerator):
     pass

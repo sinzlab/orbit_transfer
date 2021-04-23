@@ -23,6 +23,11 @@ class ParamDistance(MainLoopModule):
         self.use_full_importance = self.config.regularization.get(
             "use_full_importance", False
         )
+        self.use_elrg_importance = self.config.regularization.get(
+            "use_elrg_importance", False
+        )
+        if self.use_elrg_importance:
+            self.pre_compute_elrg()
         custom_importance = self.config.regularization.get("custom_importance", {})
         if custom_importance:
             for n, param in self.trainer.model.named_parameters():
@@ -36,6 +41,20 @@ class ParamDistance(MainLoopModule):
             "Test": {"img_classification": {"P-Dist": 0}},
         }
         self.tracker.add_objectives(objectives, init_epoch=True)
+
+    def pre_compute_elrg(self):
+        model = self.trainer.model
+        self.gammas = {}
+        self.deltas = {}
+        for n, param in model.named_parameters():
+            n_ = n.replace(".", "__")
+            importance = getattr(model, f"{n_}_importance")
+            v = getattr(model, f"{n_}_importance_v")
+            k = v.shape[0]
+            importance = importance.reshape(-1)
+            v = v.reshape(k, -1)
+            self.gammas[n] = (importance * v).t()
+            self.deltas[n] = torch.inverse(torch.eye(k, device=v.device) + (v * importance) @ v.t())
 
     def post_forward(self, outputs, loss, targets, **shared_memory):
         model = self.trainer.model
@@ -60,6 +79,11 @@ class ParamDistance(MainLoopModule):
                         @ importance
                         @ (param - starting_point).t()
                     ).squeeze()
+                elif self.use_elrg_importance:
+                    param = param.flatten()
+                    starting_point = self.sp_state_dict[n].flatten()
+                    d = (param - starting_point).t() @ self.gammas[n]
+                    distance = d @ self.deltas[n] @ d.t()
                 else:
                     distance = (importance * (param - self.sp_state_dict[n]) ** 2).sum()
                 reg_loss = reg_loss + distance

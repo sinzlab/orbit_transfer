@@ -1,3 +1,5 @@
+from collections import Sequence, Collection
+
 import torch
 import numpy as np
 from torch.hub import load_state_dict_from_url
@@ -18,6 +20,7 @@ from bias_transfer.configs.model import (
 )
 from .lenet_bayesian import lenet_builder as bayes_builder
 from .lenet_frcl import lenet_builder as frcl_builder
+from .lenet_elrg import lenet_builder as elrg_builder
 from .linear import linear_builder
 
 
@@ -45,6 +48,8 @@ def classification_model_builder(data_loader, seed: int, **config):
     elif "lenet" in config.type:
         if "bayes" in config.type:
             model = bayes_builder(seed, config)
+        elif "elrg" in config.type:
+            model = elrg_builder(seed, config)
         elif "frcl" in config.type:
             model = frcl_builder(seed, config)
         else:
@@ -90,10 +95,18 @@ def classification_model_builder(data_loader, seed: int, **config):
             if p.requires_grad:
                 n = n.replace(".", "__")
                 for b in config.add_buffer:
-                    model.register_buffer(
-                        f"{n}_{b}",
-                        p.detach().clone().zero_(),
-                    )
+                    if isinstance(b, str):
+                        model.register_buffer(
+                            f"{n}_{b}",
+                            p.detach().clone().zero_(),
+                        )
+                    else:
+                        k = b[1]
+                        b = b[0]
+                        model.register_buffer(
+                            f"{n}_{b}",
+                            torch.zeros(k, *p.data.shape),
+                        )
     return model
 
 

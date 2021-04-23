@@ -1,4 +1,5 @@
 from .simclr import SIMCLR
+from .elrg import ELRG
 from .synaptic_intelligence import SynapticIntelligence
 from .fisher_estimation import FisherEstimation
 from .parameter_regularization.param_distance import ParamDistance
