@@ -80,10 +80,11 @@ class ParamDistance(MainLoopModule):
                         @ (param - starting_point).t()
                     ).squeeze()
                 elif self.use_elrg_importance:
+                    distance = (importance * (param - self.sp_state_dict[n]) ** 2).sum()
                     param = param.flatten()
                     starting_point = self.sp_state_dict[n].flatten()
                     d = (param - starting_point).t() @ self.gammas[n]
-                    distance = d @ self.deltas[n] @ d.t()
+                    distance -= d @ self.deltas[n] @ d.t()
                 else:
                     distance = (importance * (param - self.sp_state_dict[n]) ** 2).sum()
                 reg_loss = reg_loss + distance
