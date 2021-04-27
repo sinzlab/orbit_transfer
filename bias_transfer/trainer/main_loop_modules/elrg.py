@@ -25,7 +25,7 @@ class ELRG(MainLoopModule):
 
     def post_forward(self, outputs, loss, targets, **shared_memory):
         loss += self._calculate_kl_term() / self.train_len
-        targets = targets.repeat(self.num_samples).view(-1)
+        targets = torch.cat(self.num_samples * [targets])
         return outputs, loss, targets
 
     def _calculate_kl_term(self):
@@ -45,5 +45,7 @@ class ELRG(MainLoopModule):
         kl += torch.norm(means, 2) ** 2 / self.prior_var
         kl += means.shape[0] * torch.log(self.prior_var)
         kl += (torch.norm(vs, 2, dim=1) ** 2).sum() * alpha / self.prior_var
-        kl -= torch.logdet(torch.eye(model.rank, device=self.device) + alpha * ((vs / vars) @ vs.T))
+        kl -= torch.logdet(
+            torch.eye(model.rank, device=self.device) + alpha * ((vs / vars) @ vs.T)
+        )
         return 0.5 * kl

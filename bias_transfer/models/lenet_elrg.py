@@ -18,12 +18,14 @@ class ELRGLinear(nn.Module):
         bias: bool = True,
         rank: int = 1,
         alpha: float = None,
+        train_var = True,
     ):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.use_bias = bias
         self.rank = rank
+        self.alpha = alpha
         self.sqrt_alpha = torch.sqrt(torch.tensor(alpha))
         self.initial_posterior_var = initial_posterior_var
         (
@@ -51,6 +53,10 @@ class ELRGLinear(nn.Module):
         self.weight = self.w_posterior_mean
         if bias:
             self.bias = self.b_posterior_mean
+
+        if not train_var:
+            self.w_posterior_log_var.requires_grad = False
+            self.b_posterior_log_var.requires_grad = False
 
     def create_parameter(self, name, dims):
         # prior_mean = torch.zeros(*dims)
@@ -94,7 +100,12 @@ class ELRGLinear(nn.Module):
                 self.b_posterior_log_var, math.log(self.initial_posterior_var)
             )
 
-    def forward(self, x):
+    def forward(self, x, num_samples=0):
+        if num_samples:
+            y = []
+            for s in range(num_samples):
+                y.append(self.forward(x))
+            return torch.cat(y)
         epsilon_var = torch.randn((x.shape[0], self.out_features), device=x.device)
         epsilon_v = torch.randn(self.rank)
         sampled_output = F.linear(x, self.w_posterior_mean, self.b_posterior_mean)
@@ -102,16 +113,27 @@ class ELRGLinear(nn.Module):
             F.linear(
                 x ** 2,
                 torch.exp(self.w_posterior_log_var),
-                torch.exp(self.b_posterior_log_var),
+                torch.exp(self.b_posterior_log_var) if self.use_bias else None,
             )
         )
         v_output = torch.zeros_like(sampled_output)
         for k in range(self.rank):
             v_output += epsilon_v[k] * F.linear(
-                x, self.w_posterior_v[k], self.b_posterior_v[k]
+                x,
+                self.w_posterior_v[k],
+                self.b_posterior_v[k] if self.use_bias else None,
             )
 
         return sampled_output + self.sqrt_alpha * v_output
+
+    def get_parameters(self, name, keep_first_dim=False):
+        return concatenate_flattened(
+            [
+                self._parameters.get(f"w_{name}"),
+                self._parameters.get(f"b_{name}"),
+            ],
+            keep_first_dim=keep_first_dim,
+        )
 
 
 class LeNet300100(nn.Module):
@@ -124,15 +146,16 @@ class LeNet300100(nn.Module):
         dropout: float = 0.0,
         rank: int = 1,
         alpha: float = None,
+        train_var: bool=True,
     ):
         super(LeNet300100, self).__init__()
         self.rank = rank
         self.alpha = alpha if alpha is not None else 1 / rank
         self.input_size = (input_height, input_width)
         self.flat_input_size = input_width * input_height * input_channels
-        self.fc1 = ELRGLinear(self.flat_input_size, 300, rank=rank, alpha=self.alpha)
-        self.fc2 = ELRGLinear(300, 100, rank=rank, alpha=self.alpha)
-        self.fc3 = ELRGLinear(100, num_classes, rank=rank, alpha=self.alpha)
+        self.fc1 = ELRGLinear(self.flat_input_size, 300, rank=rank, alpha=self.alpha, train_var=train_var)
+        self.fc2 = ELRGLinear(300, 100, rank=rank, alpha=self.alpha, train_var=train_var)
+        self.fc3 = ELRGLinear(100, num_classes, rank=rank, alpha=self.alpha, train_var=train_var)
         self.dropout = nn.Dropout(p=dropout) if dropout else None
 
     def forward(self, x, num_samples=1):
@@ -213,6 +236,7 @@ def lenet_builder(seed: int, config):
         input_channels=config.input_channels,
         dropout=config.dropout,
         rank=config.rank,
-        alpha=config.alpha
+        alpha=config.alpha,
+        train_var=config.train_var
     )
     return model

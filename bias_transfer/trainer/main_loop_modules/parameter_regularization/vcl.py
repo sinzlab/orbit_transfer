@@ -24,7 +24,7 @@ class VCL(MainLoopModule):
 
     def post_forward(self, outputs, loss, targets, **shared_memory):
         loss += self._calculate_kl_term() / self.train_len
-        targets = targets.repeat(self.num_samples).view(-1)
+        targets = torch.cat(self.num_samples * [targets])
         return outputs, loss, targets
 
     def _calculate_kl_term(self):

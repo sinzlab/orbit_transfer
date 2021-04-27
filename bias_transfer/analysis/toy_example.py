@@ -23,8 +23,12 @@ class ToyExampleAnalyzer(Analyzer):
             state_dict = torch.load(file)
         #     w0 = state_dict["bias"].item()
         w0 = 0
-        w1 = state_dict["weight"][:, 0].item()
-        w2 = state_dict["weight"][:, 1].item()
+        if "w_posterior_mean" in state_dict:
+            w1 = state_dict["w_posterior_mean"][:, 0].item()
+            w2 = state_dict["w_posterior_mean"][:, 1].item()
+        else:
+            w1 = state_dict["weight"][:, 0].item()
+            w2 = state_dict["weight"][:, 1].item()
         # dataset
         dataset_fn, dataset_config = (Dataset & restr).fetch1(
             "dataset_fn", "dataset_config"
@@ -52,7 +56,11 @@ class ToyExampleAnalyzer(Analyzer):
             state_dict = torch.load(file)
         if "weight_importance" in state_dict:
             importance = state_dict["weight_importance"].numpy()
-            if len(importance.squeeze().shape) == 1:
+            if "weight_importance_v" in state_dict:
+                v = state_dict["weight_importance_v"].numpy()
+                v = v.reshape(v.shape[0], -1)
+                importance = v @ v.transpose() + np.diag(importance.squeeze())
+            elif len(importance.squeeze().shape) == 1:
                 importance = np.diag(importance.squeeze())
             covariance = np.linalg.inv(importance)
         else:
@@ -137,9 +145,9 @@ class ToyExampleAnalyzer(Analyzer):
         y = m * x + b
         #     origin = np.array([-w0/w1],[0]) # origin point
         #     ax[0][0].quiver(*origin, w1, w2, color=color, scale=1)
-        ax[0][0].arrow(-w0 / w1, 0, w1, w2, color=color)
+        ax[0][0].arrow(-w0 / w1, 0, w1, w2, color=color, linestyle=":", linewidth=1)
         #     print(w0)
-        plt.plot(x, y, color=color, label=label)
+        plt.plot(x, y, color=color, label=label, linewidth=1)
 
     @plot
     def plot_dataset(
@@ -154,12 +162,29 @@ class ToyExampleAnalyzer(Analyzer):
         data_b=None,
         color_a=None,
         color_b=None,
+        label="",
     ):
 
-        ax[0][0].scatter(data_a[:, 0], data_a[:, 1], color=color_a, marker="+")
-        ax[0][0].scatter(data_b[:, 0], data_b[:, 1], color=color_b, marker="_")
-        self.plot_gauss_contour(mu_a, cov_a, ax[0][0], color=color_a)
-        self.plot_gauss_contour(mu_b, cov_b, ax[0][0], color=color_b)
+        ax[0][0].scatter(
+            data_a[:, 0],
+            data_a[:, 1],
+            color=color_a,
+            marker="+",
+            linewidths=0.8,
+            s=4,
+            label=f"{label}: Class A",
+        )
+        ax[0][0].scatter(
+            data_b[:, 0],
+            data_b[:, 1],
+            color=color_b,
+            marker="_",
+            linewidths=0.8,
+            s=4,
+            label=f"{label}: Class B",
+        )
+        # self.plot_gauss_contour(mu_a, cov_a, ax[0][0], color=color_a)
+        # self.plot_gauss_contour(mu_b, cov_b, ax[0][0], color=color_b)
 
     @plot
     def plot_model(
@@ -175,26 +200,60 @@ class ToyExampleAnalyzer(Analyzer):
         if line_color and line_label:
             self.plot_decision_line(w0, w1, w2, 10, ax, line_color, line_label)
 
-    def plot_everything(self, configs, save=""):
+    def plot_everything(
+        self,
+        configs,
+        save="",
+        style="light_talk",
+        plot_source_ds=True,
+        plot_target_ds=True,
+        plot_eval_ds=True,
+        plot_source_model=True,
+        plot_target_model=True,
+        plot_transition=True,
+        plot_model=0,
+        **kwargs,
+    ):
         colors = {
             "light_blue": "#A6CEE3",
             "dark_blue": "#2578B3",
             "light_red": "#FB9A99",
             "dark_red": "#E31E1B",
-            "light_green": "#B2DF8A",
-            "dark_green": "#33A02C",
-            "light_grey": "#D3D3D3",
-            "dark_grey": "#696969",
-            "dark_orange": "#FA7E01",
-            "dark_violet": "#6A3D9A",
+            "turquoise1": "#137155",
+            "turquoise2": "#25D9A4",
+            "turquoise3": "#B0D9CD",
+            "orange1": "#924001",
+            "orange2": "#F16A02",
+            "orange3": "#F19854",
+            "violet1": "#646099",
+            "violet2": "#746BEB",
+            "violet3": "#A59EF6",
+            "pink1": "#CA0067",
+            "pink2": "#F13897",
+            "pink3": "#E767A8",
+            "green1": "#1F4500",
+            "green2": "#3D8600",
+            "green3": "#90BC5E",
+            "brown1": "#7D5916",
+            "brown2": "#C98F23",
+            "brown3": "#A38B5F",
+            "grey1": "#353535",
+            "grey2": "#666666",
+            "grey3": "#9C9C9C",
         }
-        model_colors = ["dark_green", "dark_orange", "dark_violet", "light_green"]
-        # fig_weight = plt.figure()
-        # ax_weight = fig_weight.add_subplot(projection="3d")
-        fig, ax = None, None
+        model_colors = ["grey2", "orange2", "pink2", "violet3", "green2", "brown2"]
+
+        @plot
+        def dummy_plot(fig, ax):
+            ax[0][0].set_ylim(-10, 10)
+            ax[0][0].set_xlim(-10, 10)
+
+        fig, ax = dummy_plot(ratio=(1, 1), style=style, **kwargs)
         dataset_plotted = False
 
         for i, (description, config) in enumerate(configs.items()):
+            if i != plot_model:
+                continue
             restr_0 = config.get_restrictions(level=0)
             if len(config) == 3:
                 restr_1 = config.get_restrictions(level=1)
@@ -209,6 +268,46 @@ class ToyExampleAnalyzer(Analyzer):
                 restr_0
             )
             if not dataset_plotted:
+                if plot_source_model:
+                    self.plot_model(
+                        fig=fig,
+                        ax=ax,
+                        w0=w0,
+                        w1=w1,
+                        w2=w2,
+                        line_color=colors[model_colors[0]],
+                        line_label="Source Task Solution",
+                    )
+                if plot_source_ds:
+                    fig, ax = self.plot_dataset(
+                        fig=fig,
+                        ax=ax,
+                        data_a=data_a,
+                        data_b=data_b,
+                        mu_a=mu_a,
+                        cov_a=cov_a,
+                        mu_b=mu_b,
+                        cov_b=cov_b,
+                        color_a=colors["dark_blue"],
+                        color_b=colors["dark_red"],
+                        label="Source Environment"
+                    )
+
+            if plot_transition and plot_source_model:
+                transfer_cov = self.retrieve_transfer_covariance(restr_1)
+                print(description.name, transfer_cov)
+                if transfer_cov is not None:
+                    self.plot_gauss_contour(
+                        mu=np.array([w1, w2]),
+                        cov=transfer_cov,
+                        ax=ax[0][0],
+                        color=colors[model_colors[i + 1]],
+                    )
+
+            if not dataset_plotted and plot_eval_ds:
+                (w0, w1, w2, data_a, data_b, mu_a, cov_a, mu_b, cov_b) = self.retrieve(
+                    restr_2
+                )
                 fig, ax = self.plot_dataset(
                     fig=fig,
                     ax=ax,
@@ -220,44 +319,23 @@ class ToyExampleAnalyzer(Analyzer):
                     cov_b=cov_b,
                     color_a=colors["light_blue"],
                     color_b=colors["light_red"],
-                    ratio=(1, 1),
-                    legend_outside=False,
+                    label="Evaluation Environment"
                 )
-                ax[0][0].set_ylim(-10, 10)
-                ax[0][0].set_xlim(-10, 10)
+
+            (w0, w1, w2, data_a, data_b, mu_a, cov_a, mu_b, cov_b) = self.retrieve(
+                restr_1
+            )
+            if plot_target_model:
                 self.plot_model(
                     fig=fig,
                     ax=ax,
                     w0=w0,
                     w1=w1,
                     w2=w2,
-                    line_color=colors[model_colors[0]],
-                    line_label="Source Task",
+                    line_color=colors[model_colors[i + 1]],
+                    line_label=description.name,
                 )
-            # ax_weight.scatter(w0, w1, w2, color=colors[4])
-
-            transfer_cov = self.retrieve_transfer_covariance(restr_1)
-            if transfer_cov is not None:
-                self.plot_gauss_contour(
-                    mu=np.array([w1, w2]),
-                    cov=transfer_cov,
-                    ax=ax[0][0],
-                    color=colors[model_colors[i + 1]],
-                )
-
-            (w0, w1, w2, data_a, data_b, mu_a, cov_a, mu_b, cov_b) = self.retrieve(
-                restr_1
-            )
-            self.plot_model(
-                fig=fig,
-                ax=ax,
-                w0=w0,
-                w1=w1,
-                w2=w2,
-                line_color=colors[model_colors[i + 1]],
-                line_label=description.name,
-            )
-            if not dataset_plotted:
+            if not dataset_plotted and plot_target_ds:
                 fig, ax = self.plot_dataset(
                     fig=fig,
                     ax=ax,
@@ -269,25 +347,22 @@ class ToyExampleAnalyzer(Analyzer):
                     cov_b=cov_b,
                     color_a=colors["dark_blue"],
                     color_b=colors["dark_red"],
+                    label="Target Environment"
                 )
-            # ax_weight.scatter(w0, w1, w2, color=colors[5])
 
-            (w0, w1, w2, data_a, data_b, mu_a, cov_a, mu_b, cov_b) = self.retrieve(
-                restr_2
-            )
-            if not dataset_plotted:
-                fig, ax = self.plot_dataset(
-                    fig=fig,
-                    ax=ax,
-                    data_a=data_a,
-                    data_b=data_b,
-                    mu_a=mu_a,
-                    cov_a=cov_a,
-                    mu_b=mu_b,
-                    cov_b=cov_b,
-                    color_a=colors["light_grey"],
-                    color_b=colors["dark_grey"],
-                )
             dataset_plotted = True
+        legend_args = {
+            "fontsize": 12,
+            "title_fontsize": "13",
+            "frameon": False,
+            "borderaxespad": 0.0,
+            "bbox_to_anchor": (1.05, 1, 1.5, 0.05),
+            "loc": 2,
+        }
+        plt.legend(**legend_args)
         if save:
-            save_plot(fig, save, ("png",))
+            save_plot(
+                fig,
+                save,
+                types=("png", "pdf", "pgf") if "tex" in style else ("png", "pdf"),
+            )

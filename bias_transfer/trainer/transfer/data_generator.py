@@ -174,9 +174,9 @@ class DataGenerator(Trainer):
                 elif n_new[-1] == "b":
                     n_new += "ias"
                 n_new = n_new.replace(".", "__")
-                importance = 1 / p
+                importance = 1 / torch.exp(p)
                 self.model.register_buffer(f"{n_new}_importance", importance)
-            if "_posterior_v" in n:
+            elif "_posterior_v" in n:
                 n_new = n[: -len("_posterior_v")]
                 if n_new[-1] == "w":
                     n_new += "eight"

@@ -17,9 +17,10 @@ class BayesLinear(nn.Module):
         initial_posterior_var: float = 1e-3,
         bias: bool = True,
     ):
-        super(BayesLinear, self).__init__()
+        super().__init__()
         self.in_features = in_features
         self.out_features = out_features
+        self.use_bias = bias
         self.initial_posterior_var = initial_posterior_var
         (
             self.w_prior_mean,
@@ -27,23 +28,25 @@ class BayesLinear(nn.Module):
             self.w_posterior_mean,
             self.w_posterior_log_var,
         ) = self.create_parameter("weight", (out_features, in_features))
-        if bias:
-            (
-                self.b_prior_mean,
-                self.b_prior_log_var,
-                self.b_posterior_mean,
-                self.b_posterior_log_var,
-            ) = self.create_parameter("bias", (out_features,))
-        else:
-            self.register_parameter("b_posterior_mean", None)
-            self.register_parameter("b_posterior_log_var", None)
+        (
+            self.b_prior_mean,
+            self.b_prior_log_var,
+            self.b_posterior_mean,
+            self.b_posterior_log_var,
+        ) = self.create_parameter("bias", (out_features,), empty=not bias)
         self.reset_parameters()
 
-    def create_parameter(self, name, dims):
-        prior_mean = torch.zeros(*dims)
-        prior_log_var = torch.zeros(*dims)
-        posterior_mean = nn.Parameter(torch.Tensor(*dims), requires_grad=True)
-        posterior_log_var = nn.Parameter(torch.Tensor(*dims), requires_grad=True)
+    def create_parameter(self, name, dims, empty=False):
+        if empty:
+            prior_mean = None
+            prior_log_var = None
+            posterior_mean = nn.Parameter(None)
+            posterior_log_var = nn.Parameter(None)
+        else:
+            prior_mean = torch.zeros(*dims)
+            prior_log_var = torch.zeros(*dims)
+            posterior_mean = nn.Parameter(torch.Tensor(*dims), requires_grad=True)
+            posterior_log_var = nn.Parameter(torch.Tensor(*dims), requires_grad=True)
         # Finally, we register the prior and the posterior with the nn.Module.
         # The prior values are registered as buffers, which indicates to PyTorch
         # that they represent persistent state which should not be updated by
@@ -60,9 +63,10 @@ class BayesLinear(nn.Module):
         """
         # Set the value of the prior to be the current value of the posterior
         self.w_prior_mean.data.copy_(self.w_posterior_mean.data)
-        self.b_prior_mean.data.copy_(self.b_posterior_mean.data)
         self.w_prior_log_var.data.copy_(self.w_posterior_log_var.data)
-        self.b_prior_log_var.data.copy_(self.b_posterior_log_var.data)
+        if self.use_bias:
+            self.b_prior_mean.data.copy_(self.b_posterior_mean.data)
+            self.b_prior_log_var.data.copy_(self.b_posterior_log_var.data)
 
     def reset_parameters(self):
         # Initialise the posterior means with a normal distribution. Note that
@@ -73,7 +77,7 @@ class BayesLinear(nn.Module):
         torch.nn.init.constant_(
             self.w_posterior_log_var, math.log(self.initial_posterior_var)
         )
-        if self.bias is not None:
+        if self.use_bias:
             torch.nn.init.normal_(self.b_posterior_mean, mean=0, std=0.1)
             # Initialise the posterior variances with the given constant value.
             torch.nn.init.constant_(
@@ -84,19 +88,43 @@ class BayesLinear(nn.Module):
     def _sample_parameters(w_mean, b_mean, w_log_var, b_log_var):
         # sample weights and biases from normal distributions
         w_epsilon = torch.randn_like(w_mean)
-        b_epsilon = torch.randn_like(b_mean)
         sampled_weight = w_mean + w_epsilon * torch.exp(0.5 * w_log_var)
-        sampled_bias = b_mean + b_epsilon * torch.exp(0.5 * b_log_var)
+        if b_mean is not None and b_mean.nelement() != 0:
+            b_epsilon = torch.randn_like(b_mean)
+            sampled_bias = b_mean + b_epsilon * torch.exp(0.5 * b_log_var)
+        else:
+            sampled_bias = None
         return sampled_weight, sampled_bias
 
-    def forward(self, input):
+    def forward(self, x, num_samples=0):
+        if num_samples:
+            y = []
+            for s in range(num_samples):
+                y.append(self.forward(x))
+            return torch.cat(y)
         sampled_weight, sampled_bias = self._sample_parameters(
             self.w_posterior_mean,
             self.b_posterior_mean,
             self.w_posterior_log_var,
             self.b_posterior_log_var,
         )
-        return F.linear(input, sampled_weight, sampled_bias)
+        return F.linear(x, sampled_weight, sampled_bias)
+
+    def get_parameters(self, name):
+        if "prior" in name:
+            return concatenate_flattened(
+                [
+                    self.__getattribute__(f"w_{name}"),
+                    self.__getattribute__(f"b_{name}"),
+                ]
+            )
+        else:
+            return concatenate_flattened(
+                [
+                    self._parameters.get(f"w_{name}"),
+                    self._parameters.get(f"b_{name}"),
+                ]
+            )
 
 
 class LeNet300100(nn.Module):

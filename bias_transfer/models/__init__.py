@@ -21,7 +21,7 @@ from bias_transfer.configs.model import (
 from .lenet_bayesian import lenet_builder as bayes_builder
 from .lenet_frcl import lenet_builder as frcl_builder
 from .lenet_elrg import lenet_builder as elrg_builder
-from .linear import linear_builder
+from .linear import linear_builder, linear_bayes_builder, linear_elrg_builder
 
 
 def neural_cnn_builder(data_loaders, seed: int = 1000, **config):
@@ -55,7 +55,12 @@ def classification_model_builder(data_loader, seed: int, **config):
         else:
             model = lenet_builder(seed, config)
     elif "linear" in config.type:
-        model = linear_builder(seed, config)
+        if "bayes" in config.type:
+            model = linear_bayes_builder(seed, config)
+        elif "elrg" in config.type:
+            model = linear_elrg_builder(seed, config)
+        else:
+            model = linear_builder(seed, config)
     else:
         raise Exception("Unknown type {}".format(config.type))
 
