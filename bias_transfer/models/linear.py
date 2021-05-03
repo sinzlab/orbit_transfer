@@ -32,5 +32,7 @@ def linear_elrg_builder(seed: int, config):
         bias=False,
         rank=config.rank,
         alpha=config.alpha,
+        train_var=config.train_var,
+        initial_posterior_var=config.initial_var
     )
     return model

@@ -18,7 +18,7 @@ class ELRGLinear(nn.Module):
         bias: bool = True,
         rank: int = 1,
         alpha: float = None,
-        train_var = True,
+        train_var=True,
     ):
         super().__init__()
         self.in_features = in_features
@@ -56,7 +56,8 @@ class ELRGLinear(nn.Module):
 
         if not train_var:
             self.w_posterior_log_var.requires_grad = False
-            self.b_posterior_log_var.requires_grad = False
+            if self.b_posterior_log_var:
+                self.b_posterior_log_var.requires_grad = False
 
     def create_parameter(self, name, dims):
         # prior_mean = torch.zeros(*dims)
@@ -107,7 +108,7 @@ class ELRGLinear(nn.Module):
                 y.append(self.forward(x))
             return torch.cat(y)
         epsilon_var = torch.randn((x.shape[0], self.out_features), device=x.device)
-        epsilon_v = torch.randn(self.rank)
+        epsilon_v = torch.randn((x.shape[0], self.rank), device=x.device)
         sampled_output = F.linear(x, self.w_posterior_mean, self.b_posterior_mean)
         sampled_output += epsilon_var * torch.sqrt(
             F.linear(
@@ -118,7 +119,7 @@ class ELRGLinear(nn.Module):
         )
         v_output = torch.zeros_like(sampled_output)
         for k in range(self.rank):
-            v_output += epsilon_v[k] * F.linear(
+            v_output += epsilon_v[:, k].unsqueeze(dim=-1) * F.linear(
                 x,
                 self.w_posterior_v[k],
                 self.b_posterior_v[k] if self.use_bias else None,
@@ -146,16 +147,38 @@ class LeNet300100(nn.Module):
         dropout: float = 0.0,
         rank: int = 1,
         alpha: float = None,
-        train_var: bool=True,
+        train_var: bool = True,
+        initial_var: float = 1e-12,
     ):
         super(LeNet300100, self).__init__()
         self.rank = rank
         self.alpha = alpha if alpha is not None else 1 / rank
         self.input_size = (input_height, input_width)
         self.flat_input_size = input_width * input_height * input_channels
-        self.fc1 = ELRGLinear(self.flat_input_size, 300, rank=rank, alpha=self.alpha, train_var=train_var)
-        self.fc2 = ELRGLinear(300, 100, rank=rank, alpha=self.alpha, train_var=train_var)
-        self.fc3 = ELRGLinear(100, num_classes, rank=rank, alpha=self.alpha, train_var=train_var)
+        self.fc1 = ELRGLinear(
+            self.flat_input_size,
+            300,
+            rank=rank,
+            alpha=self.alpha,
+            train_var=train_var,
+            initial_posterior_var=initial_var,
+        )
+        self.fc2 = ELRGLinear(
+            300,
+            100,
+            rank=rank,
+            alpha=self.alpha,
+            train_var=train_var,
+            initial_posterior_var=initial_var,
+        )
+        self.fc3 = ELRGLinear(
+            100,
+            num_classes,
+            rank=rank,
+            alpha=self.alpha,
+            train_var=train_var,
+            initial_posterior_var=initial_var,
+        )
         self.dropout = nn.Dropout(p=dropout) if dropout else None
 
     def forward(self, x, num_samples=1):
@@ -236,7 +259,8 @@ def lenet_builder(seed: int, config):
         input_channels=config.input_channels,
         dropout=config.dropout,
         rank=config.rank,
-        alpha=config.alpha,
-        train_var=config.train_var
+        alpha=config.gamma,
+        train_var=config.train_var,
+        initial_var=config.initial_var,
     )
     return model

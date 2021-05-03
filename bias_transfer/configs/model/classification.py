@@ -9,6 +9,7 @@ class ClassificationModel(ModelConfig):
     def __init__(self, **kwargs):
         self.load_kwargs(**kwargs)
         self.type: str = "resnet50"
+        self.core_type: str = "conv"
         self.conv_stem_kernel_size: int = 3
         self.conv_stem_padding: int = 1
         self.conv_stem_stride: int = 1

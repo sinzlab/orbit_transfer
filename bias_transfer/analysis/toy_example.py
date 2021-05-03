@@ -59,20 +59,28 @@ class ToyExampleAnalyzer(Analyzer):
             if "weight_importance_v" in state_dict:
                 v = state_dict["weight_importance_v"].numpy()
                 v = v.reshape(v.shape[0], -1)
-                importance = v @ v.transpose() + np.diag(importance.squeeze())
+                elrg_alpha = 1 / v.shape[0]
+                print("alpha", elrg_alpha)
+                print("V", v)
+                print(v.transpose() @ v)
+                print("diag", importance)
+                covariance = elrg_alpha * v.transpose() @ v + np.diag(
+                    1 / importance.squeeze()
+                )
+                print("covariance", covariance)
             elif len(importance.squeeze().shape) == 1:
                 importance = np.diag(importance.squeeze())
-            covariance = np.linalg.inv(importance)
+                covariance = np.linalg.inv(importance)
         else:
             covariance = np.array([[1, 0], [0, 1]])
-        alpha = (
+        gamma = (
             (Trainer & restr)
             .fetch1("trainer_config")
             .get("regularization")
-            .get("alpha")
+            .get("gamma")
         )
-        if alpha:
-            return covariance / alpha
+        if gamma:
+            return covariance / gamma
         else:
             return None
 
@@ -124,6 +132,7 @@ class ToyExampleAnalyzer(Analyzer):
                 X, Y, Z, levels=levels, origin="lower", linewidths=0.5, **contour_kwargs
             )
         else:
+            print("contour")
             contour = ax.contour(
                 X, Y, Z, levels=levels, origin="lower", linewidths=0.5, **contour_kwargs
             )
@@ -131,10 +140,10 @@ class ToyExampleAnalyzer(Analyzer):
         return contour
 
     def plot_gauss_contour(self, mu, cov, ax, color):
-        norm = np.random.multivariate_normal(mu, cov, size=10000000)
-        self.density_contour(norm[:, 0], norm[:, 1], 100, 100, ax=ax, colors=color)
+        norm = np.random.multivariate_normal(mu, cov, size=200000000)
+        self.density_contour(norm[:, 0], norm[:, 1], 400, 400, ax=ax, colors=color)
 
-    def plot_decision_line(self, w0, w1, w2, x_lim, ax, color, label):
+    def plot_decision_line(self, w0, w1, w2, x_lim, ax, color, color_light, label):
         if w0 == 0:
             m = -w1 / w2
             b = 0
@@ -145,9 +154,20 @@ class ToyExampleAnalyzer(Analyzer):
         y = m * x + b
         #     origin = np.array([-w0/w1],[0]) # origin point
         #     ax[0][0].quiver(*origin, w1, w2, color=color, scale=1)
-        ax[0][0].arrow(-w0 / w1, 0, w1, w2, color=color, linestyle=":", linewidth=1)
-        #     print(w0)
+        ax[0][0].arrow(
+            -w0 / w1, 0, w1, w2, color=color_light, linestyle=":", linewidth=0.8
+        )
+
         plt.plot(x, y, color=color, label=label, linewidth=1)
+        ax[0][0].plot(
+            w1,
+            w2,
+            "d",
+            color=color_light,
+            label=label + ": Weight",
+            linewidth=0.8,
+            ms=2,
+        )
 
     @plot
     def plot_dataset(
@@ -163,26 +183,45 @@ class ToyExampleAnalyzer(Analyzer):
         color_a=None,
         color_b=None,
         label="",
+        legend_on_both=False,
     ):
-
-        ax[0][0].scatter(
-            data_a[:, 0],
-            data_a[:, 1],
-            color=color_a,
-            marker="+",
-            linewidths=0.8,
-            s=4,
-            label=f"{label}: Class A",
-        )
-        ax[0][0].scatter(
-            data_b[:, 0],
-            data_b[:, 1],
-            color=color_b,
-            marker="_",
-            linewidths=0.8,
-            s=4,
-            label=f"{label}: Class B",
-        )
+        if legend_on_both:
+            ax[0][0].scatter(
+                data_a[:, 0],
+                data_a[:, 1],
+                color=color_a,
+                marker="+",
+                linewidths=0.8,
+                s=4,
+                label=f"{label}: Class A",
+            )
+            ax[0][0].scatter(
+                data_b[:, 0],
+                data_b[:, 1],
+                color=color_b,
+                marker="_",
+                linewidths=0.8,
+                s=4,
+                label=f"{label}: Class B",
+            )
+        else:
+            ax[0][0].scatter(
+                data_a[:, 0],
+                data_a[:, 1],
+                color=color_a,
+                marker="+",
+                linewidths=0.8,
+                s=4,
+                label=label,
+            )
+            ax[0][0].scatter(
+                data_b[:, 0],
+                data_b[:, 1],
+                color=color_b,
+                marker="_",
+                linewidths=0.8,
+                s=4,
+            )
         # self.plot_gauss_contour(mu_a, cov_a, ax[0][0], color=color_a)
         # self.plot_gauss_contour(mu_b, cov_b, ax[0][0], color=color_b)
 
@@ -195,10 +234,13 @@ class ToyExampleAnalyzer(Analyzer):
         w1=None,
         w2=None,
         line_color=None,
+        arrow_color=None,
         line_label="",
     ):
         if line_color and line_label:
-            self.plot_decision_line(w0, w1, w2, 10, ax, line_color, line_label)
+            self.plot_decision_line(
+                w0, w1, w2, 10, ax, line_color, arrow_color, line_label
+            )
 
     def plot_everything(
         self,
@@ -212,7 +254,8 @@ class ToyExampleAnalyzer(Analyzer):
         plot_target_model=True,
         plot_transition=True,
         plot_model=0,
-        **kwargs,
+        legend_on_both_ds=False,
+            ** kwargs,
     ):
         colors = {
             "light_blue": "#A6CEE3",
@@ -241,7 +284,14 @@ class ToyExampleAnalyzer(Analyzer):
             "grey2": "#666666",
             "grey3": "#9C9C9C",
         }
-        model_colors = ["grey2", "orange2", "pink2", "violet3", "green2", "brown2"]
+        model_colors = [
+            ("grey2", "grey2"),
+            ("orange2", "orange2"),
+            ("pink2", "pink2"),
+            ("violet3", "violet3"),
+            ("green2", "green2"),
+            ("brown2", "brown2"),
+        ]
 
         @plot
         def dummy_plot(fig, ax):
@@ -275,8 +325,9 @@ class ToyExampleAnalyzer(Analyzer):
                         w0=w0,
                         w1=w1,
                         w2=w2,
-                        line_color=colors[model_colors[0]],
-                        line_label="Source Task Solution",
+                        line_color=colors[model_colors[0][0]],
+                        arrow_color=colors[model_colors[0][1]],
+                        line_label="Source Env. Solution",
                     )
                 if plot_source_ds:
                     fig, ax = self.plot_dataset(
@@ -290,7 +341,8 @@ class ToyExampleAnalyzer(Analyzer):
                         cov_b=cov_b,
                         color_a=colors["dark_blue"],
                         color_b=colors["dark_red"],
-                        label="Source Environment"
+                        label="Source Environment",
+                        legend_on_both=legend_on_both_ds,
                     )
 
             if plot_transition and plot_source_model:
@@ -301,7 +353,7 @@ class ToyExampleAnalyzer(Analyzer):
                         mu=np.array([w1, w2]),
                         cov=transfer_cov,
                         ax=ax[0][0],
-                        color=colors[model_colors[i + 1]],
+                        color=colors[model_colors[i + 1][0]],
                     )
 
             if not dataset_plotted and plot_eval_ds:
@@ -319,7 +371,7 @@ class ToyExampleAnalyzer(Analyzer):
                     cov_b=cov_b,
                     color_a=colors["light_blue"],
                     color_b=colors["light_red"],
-                    label="Evaluation Environment"
+                    label="Evaluation Environment",
                 )
 
             (w0, w1, w2, data_a, data_b, mu_a, cov_a, mu_b, cov_b) = self.retrieve(
@@ -332,7 +384,8 @@ class ToyExampleAnalyzer(Analyzer):
                     w0=w0,
                     w1=w1,
                     w2=w2,
-                    line_color=colors[model_colors[i + 1]],
+                    line_color=colors[model_colors[i + 1][0]],
+                    arrow_color=colors[model_colors[i + 1][1]],
                     line_label=description.name,
                 )
             if not dataset_plotted and plot_target_ds:
@@ -347,7 +400,7 @@ class ToyExampleAnalyzer(Analyzer):
                     cov_b=cov_b,
                     color_a=colors["dark_blue"],
                     color_b=colors["dark_red"],
-                    label="Target Environment"
+                    label="Target Environment",
                 )
 
             dataset_plotted = True

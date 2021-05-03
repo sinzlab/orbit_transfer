@@ -18,7 +18,7 @@ class ParamDistance(MainLoopModule):
             else:
                 self.sp_state_dict[k] = copy.deepcopy(v)
         self.warned = False
-        self.alpha = self.config.regularization.get("alpha", 1.0)
+        self.gamma = self.config.regularization.get("gamma", 1.0)
         self.ignore_layers = self.config.regularization.get("ignore_layers", ())
         self.use_full_importance = self.config.regularization.get(
             "use_full_importance", False
@@ -27,6 +27,7 @@ class ParamDistance(MainLoopModule):
             "use_elrg_importance", False
         )
         if self.use_elrg_importance:
+            self.elrg_alpha = self.config.regularization.get("elrg_alpha", 1.0)
             self.pre_compute_elrg()
         custom_importance = self.config.regularization.get("custom_importance", {})
         if custom_importance:
@@ -54,7 +55,7 @@ class ParamDistance(MainLoopModule):
             importance = importance.reshape(-1)
             v = v.reshape(k, -1)
             self.gammas[n] = (importance * v).t()
-            self.deltas[n] = torch.inverse(torch.eye(k, device=v.device) + (v * importance) @ v.t())
+            self.deltas[n] = torch.inverse(self.elrg_alpha * torch.eye(k, device=v.device) + (v * importance) @ v.t())
 
     def post_forward(self, outputs, loss, targets, **shared_memory):
         model = self.trainer.model
@@ -88,7 +89,7 @@ class ParamDistance(MainLoopModule):
                 else:
                     distance = (importance * (param - self.sp_state_dict[n]) ** 2).sum()
                 reg_loss = reg_loss + distance
-            loss += self.alpha * reg_loss
+            loss += self.gamma * reg_loss
             self.tracker.log_objective(
                 loss.item(), (self.mode, self.task_key, "P-Dist")
             )

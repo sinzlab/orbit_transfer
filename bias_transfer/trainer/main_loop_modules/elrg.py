@@ -12,7 +12,7 @@ class ELRG(MainLoopModule):
     def __init__(self, trainer):
         super().__init__(trainer)
         self.eps = self.config.regularization.get("eps", 1e-8)
-        self.prior_var = torch.tensor(self.config.regularization.get("prior_var", 1.0))
+        self.prior_var = torch.tensor(self.config.regularization.get("prior_var", 1e-5))
         self.num_samples = self.config.regularization.get("num_samples", 10)
         self.train_len = len(
             self.trainer.data_loaders["train"]["img_classification"].dataset
@@ -39,13 +39,14 @@ class ELRG(MainLoopModule):
         log_vars = model.get_parameters("posterior_log_var")
         vars = torch.exp(log_vars)
         alpha = model.alpha
+        D = means.shape[0]
 
         # Calculate KL for individual normal distributions over parameters
         kl = (vars / self.prior_var - log_vars).sum()
-        kl += torch.norm(means, 2) ** 2 / self.prior_var
-        kl += means.shape[0] * torch.log(self.prior_var)
         kl += (torch.norm(vs, 2, dim=1) ** 2).sum() * alpha / self.prior_var
         kl -= torch.logdet(
             torch.eye(model.rank, device=self.device) + alpha * ((vs / vars) @ vs.T)
         )
+        kl += torch.norm(means, 2) ** 2 / self.prior_var
+        kl += D * (torch.log(self.prior_var) - 1.0)
         return 0.5 * kl
