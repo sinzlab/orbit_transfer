@@ -206,12 +206,9 @@ class ToyExampleAnalyzer(Analyzer):
         data_loaders, model, _ = TransferredTrainedModel().load_model(
             restr, include_trainer=True, include_state_dict=True, seed=seed
         )
-        V = (
-            data_loaders["train"]["transfer"]
-            .dataset.target_datasets["layers.6_cov_V"]
-            .tensors[0]
-            .numpy()
-        )
+        ds = data_loaders["train"]["transfer"].dataset.target_datasets
+        V = ds.get("layers.6_cov_V", ds.get("layers.9_cov_V")).tensors[0].numpy()
+
         inputs = (
             data_loaders["train"]["transfer"]
             .dataset.source_datasets["img"]
@@ -219,7 +216,6 @@ class ToyExampleAnalyzer(Analyzer):
             .numpy()
         )
         idx = np.argsort(inputs, axis=0)
-
 
         n = inputs.shape[0]
         # inputs = inputs[idx].reshape(n)

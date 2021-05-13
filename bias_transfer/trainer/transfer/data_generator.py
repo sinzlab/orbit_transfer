@@ -108,7 +108,7 @@ class DataGenerator(Trainer):
             data_loader = next(iter(self.data_loaders[data].values()))
             for src, _ in data_loader:
                 collected_inputs.append(src)
-            outputs["source"] = torch.cat(collected_inputs).reshape(-1,1).numpy()
+            outputs["source"] = torch.cat(collected_inputs).numpy()
         for k, o in outputs.items():
             print(k,o.shape)
         return outputs
@@ -120,7 +120,7 @@ class DataGenerator(Trainer):
             ensemble_members, train_samples, rep_dim = reps.shape
             reps = reps.transpose(0, 1).transpose(1, 2)
             mean = return_dict[f"{rep_name}"].unsqueeze(-1)
-            return_dict[f"{rep_name}_cov_V"] = (reps - mean) / math.sqrt(ensemble_members)
+            return_dict[f"{rep_name}_cov_V"] = (reps - mean) / math.sqrt(ensemble_members - 1)
             # reps = reps.reshape(
             #     (ensemble_members, -1)
             # ).T  # (train_samples * rep_dim) x ensemble_members
