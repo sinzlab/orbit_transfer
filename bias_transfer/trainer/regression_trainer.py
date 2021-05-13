@@ -31,28 +31,32 @@ class RegressionTrainer(ImgClassificationTrainer):
             return self._tracker
 
     def compute_loss(self, mode, task_key, loss, outputs, targets):
-        reg_loss = self.criterion["regression"](outputs.reshape((-1,)), targets)
-        if self.config.scale_loss_with_arctanh:
-            reg_loss = arctanh(reg_loss)
+        if task_key != "transfer" and task_key in self.config.loss_functions:
+            reg_loss = self.criterion["regression"](outputs.reshape((-1,)), targets)
+            if self.config.scale_loss_with_arctanh:
+                reg_loss = arctanh(reg_loss)
 
-        loss += reg_loss
-        _, predicted = outputs.max(1)
-        batch_size = targets.size(0)
-        self.tracker.log_objective(
-            batch_size,
-            key=(mode, task_key, "normalization"),
-        )
-        self.tracker.log_objective(
-            loss.item() * batch_size,
-            key=(mode, task_key, "loss"),
-        )
+            loss += reg_loss
+            _, predicted = outputs.max(1)
+            batch_size = targets.size(0)
+            self.tracker.log_objective(
+                batch_size,
+                key=(mode, task_key, "normalization"),
+            )
+            self.tracker.log_objective(
+                loss.item() * batch_size,
+                key=(mode, task_key, "loss"),
+            )
         return loss
 
     def test_final_model(self, epoch, bn_train=""):
         if not bn_train and self.config.eval_with_bn_train:
             self.test_final_model(epoch, bn_train=" BN=Train")
         # test the final model on the test set
+        print(self.task_keys)
         for k in self.task_keys:
+            if k == "transfer":
+                continue
             objectives = {
                 "Test"
                 + bn_train: {
@@ -71,4 +75,5 @@ class RegressionTrainer(ImgClassificationTrainer):
                 cycler="LongCycler",
                 module_options={},
             )
+        print(test_result)
         return test_result

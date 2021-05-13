@@ -103,7 +103,8 @@ def vector_to_parameter_grads(vec, parameters):
         # The length of the parameter
         num_param = param.numel()
         # Slice the vector, reshape it, and replace the old data of the parameter
-        param.grad = vec[pointer : pointer + num_param].view_as(param).grad
+        param.grad = vec[pointer : pointer + num_param].view_as(param).clone()
 
         # Increment the pointer
         pointer += num_param
+

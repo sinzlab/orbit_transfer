@@ -32,10 +32,11 @@ class RepresentationRegularization(MainLoopModule):
             self.task_key == "transfer" or self.config.single_input_stream
         ):
             pred_loss = torch.zeros(1, device=self.device)
+
             for key in targets.keys():
-                if key == "class":
+                if key == "class" or "var" in key or "cov" in key:
                     continue
-                pred_loss += self.rep_distance(extra_outputs[key], targets[key])
+                pred_loss += self.rep_distance(extra_outputs[key], targets[key], targets, key)
             loss += self.alpha * pred_loss
             self.tracker.log_objective(
                 pred_loss.item(), (self.mode, "img_classification", self.name)

@@ -1,7 +1,7 @@
 from torch import nn
 import torch
 
-from . import RepresentationRegularization
+from .representation import RepresentationRegularization
 from nntransfer.trainer.utils import arctanh
 
 

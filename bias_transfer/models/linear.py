@@ -2,8 +2,8 @@ import torch
 import numpy as np
 from torch import nn
 
-from bias_transfer.models.lenet_bayesian import BayesLinear
-from bias_transfer.models.lenet_elrg import ELRGLinear
+from bias_transfer.models.layers.bayes_linear import BayesLinear
+from bias_transfer.models.layers.elrg_linear import ELRGLinear
 from nntransfer.models.utils import concatenate_flattened
 
 def linear_builder(seed: int, config):

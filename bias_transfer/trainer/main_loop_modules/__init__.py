@@ -5,7 +5,8 @@ from .fisher_estimation import FisherEstimation
 from .parameter_regularization.param_distance import ParamDistance
 from .parameter_regularization.mixup import Mixup
 from .parameter_regularization.vcl import VCL
-from .representation_regularization.rdl import RDL
-from .representation_regularization.knowledge_distillation import KnowledgeDistillation
+from .function_regularization.rdl import RDL
 from .function_regularization.frcl import FRCL
 from .function_regularization.fromp import FROMP
+from .function_regularization.knowledge_distillation import KnowledgeDistillation
+from .function_regularization.function_distance import FunctionDistance

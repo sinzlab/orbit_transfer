@@ -22,6 +22,7 @@ from .lenet_bayesian import lenet_builder as bayes_builder
 from .lenet_frcl import lenet_builder as frcl_builder
 from .lenet_elrg import lenet_builder as elrg_builder
 from .linear import linear_builder, linear_bayes_builder, linear_elrg_builder
+from .mlp import mlp_builder
 
 
 def neural_cnn_builder(data_loaders, seed: int = 1000, **config):
@@ -61,6 +62,8 @@ def classification_model_builder(data_loader, seed: int, **config):
             model = linear_elrg_builder(seed, config)
         else:
             model = linear_builder(seed, config)
+    elif "mlp":
+        model = mlp_builder(seed,config)
     else:
         raise Exception("Unknown type {}".format(config.type))
 
@@ -77,23 +80,6 @@ def classification_model_builder(data_loader, seed: int, **config):
         except:
             load_state_dict(model, state_dict["model_state_dict"])
 
-    # Add wrappers
-    if config.get_intermediate_rep:
-        model = IntermediateLayerGetter(
-            model, return_layers=config.get_intermediate_rep, keep_output=True
-        )
-    if config.noise_adv_regression or config.noise_adv_classification:
-        assert not config.self_attention
-        model = NoiseAdvWrapper(
-            model,
-            input_size=model.fc.in_features
-            if "resnet" in config.type
-            else model.n_features,
-            hidden_size=model.fc.in_features if "resnet" in config.type else 4096,
-            classification=config.noise_adv_classification,
-            num_noise_readout_layers=config.num_noise_readout_layers,
-            sigmoid_output=config.noise_sigmoid_output,
-        )
     print("Model with {} parameters.".format(get_model_parameters(model)))
     if config.add_buffer:
         for n, p in model.named_parameters():
@@ -112,6 +98,29 @@ def classification_model_builder(data_loader, seed: int, **config):
                             f"{n}_{b}",
                             torch.zeros(k, *p.data.shape),
                         )
+    if config.add_custom_buffer:
+        for key, size in config.add_custom_buffer.items():
+            model.register_buffer(
+                key,
+                torch.zeros(size),
+            )
+    # Add wrappers
+    if config.get_intermediate_rep:
+        model = IntermediateLayerGetter(
+            model, return_layers=config.get_intermediate_rep, keep_output=True
+        )
+    if config.noise_adv_regression or config.noise_adv_classification:
+        assert not config.self_attention
+        model = NoiseAdvWrapper(
+            model,
+            input_size=model.fc.in_features
+            if "resnet" in config.type
+            else model.n_features,
+            hidden_size=model.fc.in_features if "resnet" in config.type else 4096,
+            classification=config.noise_adv_classification,
+            num_noise_readout_layers=config.num_noise_readout_layers,
+            sigmoid_output=config.noise_sigmoid_output,
+        )
     return model
 
 

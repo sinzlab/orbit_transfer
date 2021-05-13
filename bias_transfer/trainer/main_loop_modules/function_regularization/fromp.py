@@ -10,6 +10,7 @@ from bias_transfer.trainer.main_loop_modules.function_regularization.fromp_utils
     parameter_grads_to_vector,
     vector_to_parameter_grads,
 )
+from nntransfer.models.lenet import LocallyConnected2d
 from nntransfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 from neuralpredictors.training import eval_state
 
@@ -24,6 +25,7 @@ class FROMP(MainLoopModule):
         self.prior_prec = self.config.regularization.get("prior_prec")
         self.grad_clip_norm = self.config.regularization.get("grad_clip_norm")
         self.alpha = self.config.regularization.get("alpha")
+        print("ALPHA", self.alpha)
         if self.prior_prec < 0.0:
             raise ValueError(f"invalid prior precision: {self.prior_prec}")
         if (self.grad_clip_norm is not None) and (not self.grad_clip_norm >= 0.0):
@@ -33,16 +35,26 @@ class FROMP(MainLoopModule):
         self.covariance = torch.tensor(
             self.trainer.data_loaders.pop("covariance"), device=self.device
         )
-        main_task = next(iter(self.trainer.data_loaders["train"].keys()))
-        self.memorable_points_prev = (
-            self.trainer.data_loaders["train"].pop(f"{main_task}_cs").dataset.samples
-        )
+        if "preds_prev_mem_prev_model" in self.trainer.data_loaders:
+            self.preds_prev_mem_prev_model = torch.tensor(
+                self.trainer.data_loaders.pop("preds_prev_mem_prev_model"),
+                device=self.device,
+            )
+        if "kernel_inv_prev_mem_prev_model" in self.trainer.data_loaders:
+            self.kernel_inv_prev_mem_prev_model = torch.tensor(
+                self.trainer.data_loaders.pop("kernel_inv_prev_mem_prev_model"),
+                device=self.device,
+            )
+        main_task = next(iter(self.train_loader.keys()))
+        self.memorable_points_prev = self.train_loader.pop(
+            f"{main_task}_cs"
+        ).dataset.samples
         self.model = self.trainer.model
         self.optimizer = self.trainer.optimizer
+        self.train_len = len(self.train_loader[main_task].dataset)
+        self.batch_size = 0
         self.train_modules = []
         self.set_train_modules(self.model, self.train_modules)
-
-        self.init_task(self.config.regularization.get("eps", 1e-5))
 
     def init_task(self, eps):
         """
@@ -50,7 +62,9 @@ class FROMP(MainLoopModule):
 
         """
         self.kernel_inv_prev_mem_prev_model = []
-        covariance = 1.0 / (self.covariance + self.prior_prec)
+        covariance = 1.0 / (
+            self.covariance + self.prior_prec
+        )  # v = 1 / (\delta 1 + ...)
 
         with eval_state(self.model):
             memorable_data_prev = self.memorable_points_prev.to(self.device)
@@ -62,7 +76,7 @@ class FROMP(MainLoopModule):
             preds_prev_mem = torch.sigmoid(logits_prev_mem)
         else:
             preds_prev_mem = torch.softmax(logits_prev_mem, dim=-1)
-        self.preds_prev_mem_prev_model = preds_prev_mem.detach()
+        self.preds_prev_mem_prev_model = preds_prev_mem.detach()  # m_{t-1,s}
 
         # Calculate kernel = J \Sigma J^T for all memory points, and store via cholesky decomposition
         intermediate_outputs = []
@@ -78,14 +92,14 @@ class FROMP(MainLoopModule):
                 intermediate_outputs,
                 self.train_modules,
                 retain_graph=retain_graph,
-            )
+            )  # J_{w_{t-1}}
             kernel = (
                 torch.einsum("ij,j,pj->ip", grad, covariance, grad)
                 + torch.eye(grad.shape[0], dtype=grad.dtype, device=grad.device) * eps
-            )
+            )  # K_{t-1,s} = J_{w_{t-1}}(x_i) ( v \odot J_{w_{t-1}}(x_i)^T)
             self.kernel_inv_prev_mem_prev_model.append(
                 torch.cholesky_inverse(torch.cholesky(kernel))
-            )
+            )  # K_{t-1,s}^{-1}
 
     @classmethod
     def set_train_modules(cls, module, train_modules):
@@ -109,7 +123,7 @@ class FROMP(MainLoopModule):
         """
         linear_grad = torch.autograd.grad(
             loss, intermediate_outputs, retain_graph=retain_graph
-        )
+        )  # grad of loss w.r.t. each layers output (dL/dz)
         grad = []
         for i, module in enumerate(train_modules):
             g = linear_grad[i]
@@ -120,6 +134,19 @@ class FROMP(MainLoopModule):
                 grad.append(torch.einsum("ij,ik->ijk", g, a))
                 if module.bias is not None:
                     grad.append(g)
+
+            if isinstance(module, LocallyConnected2d):
+                _, c, h, w = a.size()
+                kh, kw = module.kernel_size
+                dh, dw = module.stride
+                a = a.unfold(2, kh, dh).unfold(3, kw, dw)
+                a = a.contiguous().view(*a.size()[:-2], -1)  # [b,in_c,out_height,out_width,kernel_size**2]
+                _, _, oh, ow, _ = a.size()
+                # g: [b, out_c, out_height,out_width]
+                grad.append(torch.einsum("bohw,bihwk->boihwk", g, a))
+                if module.bias is not None:
+                    a = torch.ones((m, 1, oh, ow), device=a.device)
+                    grad.append(torch.einsum("bohw,bihw->bohw", g, a))
 
             if isinstance(module, nn.Conv2d):
                 a = F.unfold(
@@ -193,18 +220,27 @@ class FROMP(MainLoopModule):
         for module in train_modules:
             intermediate_outputs.append(module.output)
 
-        jacobian = cls.calculate_jacobian(logits, intermediate_outputs, train_modules)
+        jacobian = cls.calculate_jacobian(
+            logits, intermediate_outputs, train_modules
+        )  # J_w(x)
         if logits.shape[-1] == 1:
             hessian = logistic_hessian(logits).detach()
             hessian = hessian[:, :, None]
         else:
-            hessian = full_softmax_hessian(logits).detach()
-        return torch.einsum("ijd,idp,ijp->j", jacobian, hessian, jacobian)
+            hessian = full_softmax_hessian(logits).detach()  # \Lambda_w(x)
+        return torch.einsum(
+            "ijd,idp,ijp->j", jacobian, hessian, jacobian
+        )  # v' in v=1/(\delta 1 + v')
+
+    def pre_forward(self, model, inputs, task_key, shared_memory):
+        self.batch_size = inputs.shape[0]
+        super().pre_forward(model, inputs, task_key, shared_memory)
+        return model, inputs
 
     def post_backward(self, model):
-        parameters = self.model.parameters()
+        parameters = list(self.model.parameters())
         grad = parameter_grads_to_vector(parameters).detach()
-        grad *= 1 / self.alpha
+        # grad *= self.train_len / self.batch_size  # normalize to scale correctly against KL-div TODO: was this missing in original???
 
         grad_func_reg = torch.zeros_like(
             grad
@@ -249,7 +285,7 @@ class FROMP(MainLoopModule):
             # K_{t-1}^{-1}
             kernel_inv_prev = self.kernel_inv_prev_mem_prev_model[class_id]
 
-            # Uncomment the following line for L2 variants of algorithms
+            # Uncomment the following line for L2 variants of algorithms i.e. for function regularisation
             # kernel_inv_t = torch.eye(kernel_inv_t.shape[0], device=kernel_inv_t.device)
 
             # Calculate K_{t-1}^{-1} (m_t - m_{t-1})
@@ -257,9 +293,11 @@ class FROMP(MainLoopModule):
                 torch.matmul(kernel_inv_prev, delta_preds[:, None]), dim=-1
             )
 
-            grad_func_reg += torch.einsum("ij,i->j", jacobian_t, kinvf_t)
+            grad_func_reg += torch.einsum(
+                "ij,i->j", jacobian_t, kinvf_t
+            )  # H K^{-1} (m_t - m_{t-1})
 
-        grad += grad_func_reg
+        grad += self.alpha * grad_func_reg
 
         # Do gradient norm clipping
         if self.grad_clip_norm is not None:

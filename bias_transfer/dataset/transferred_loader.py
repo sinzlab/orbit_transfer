@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import TensorDataset
+import nnfabrik as nnf
 
 from bias_transfer.dataset import mnist_transfer_dataset_loader
 from nntransfer.dataset.dataset_classes.combined_dataset import ParallelDataset
@@ -21,18 +22,23 @@ def load_npy(postfix, data_key, transfer_data, data_loaders, main_data_loader):
 
 
 def transferred_dataset_loader(
-    seed, primary_dataset_fn=mnist_transfer_dataset_loader, **config
+    seed,  **config
 ):
     print("transferred data loader")
     transfer_data_file = config.pop("transfer_data")
     transfer_data = {k: transfer_data_file[k] for k in transfer_data_file.files}
 
+    primary_dataset_fn = nnf.builder.resolve_fn(config.pop("primary_dataset_fn"), default_base="datasets")
     data_loaders = primary_dataset_fn(seed, **config)
     main_task = next(iter(data_loaders["train"].keys()))
     main_data_loader = data_loaders["train"][main_task]
     main_dataset = main_data_loader.dataset
     if "covariance" in transfer_data:
         data_loaders["covariance"] = transfer_data.pop("covariance")
+    if "preds_prev_mem_prev_model" in transfer_data:
+        data_loaders["preds_prev_mem_prev_model"] = transfer_data.pop("preds_prev_mem_prev_model")
+    if "kernel_inv_prev_mem_prev_model" in transfer_data:
+        data_loaders["kernel_inv_prev_mem_prev_model"] = transfer_data.pop("kernel_inv_prev_mem_prev_model")
 
     if "source_cs" in transfer_data:  # we have a coreset
         if config.get("train_on_coreset"):
