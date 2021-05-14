@@ -54,7 +54,7 @@ class ELRGLinear(nn.Module):
 
         if not train_var:
             self.w_posterior_log_var.requires_grad = False
-            if self.b_posterior_log_var:
+            if bias:
                 self.b_posterior_log_var.requires_grad = False
 
     def create_parameter(self, name, dims):
