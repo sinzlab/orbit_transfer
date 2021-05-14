@@ -138,7 +138,14 @@ class ToySineDatasetLoader:
         return data_loaders
 
     def generate_sine_data(
-        self, amplitude, phase, freq, x_range, size, samples_per_function
+        self,
+        amplitude,
+        phase,
+        freq,
+        x_range,
+        size,
+        samples_per_function,
+        multi_regression=False,
     ):
         amplitude = np.random.uniform(low=amplitude[0], high=amplitude[1], size=size)
         phase = np.random.uniform(low=phase[0], high=phase[1], size=size)
@@ -146,15 +153,18 @@ class ToySineDatasetLoader:
         y_data = np.zeros((size, samples_per_function))
         x_data = np.zeros((size, samples_per_function))
         for i in range(size):
-            x_data[i, :] = np.random.uniform(
-                low=x_range[0], high=x_range[1], size=samples_per_function
-            )
-            # x_data = np.(start=x_range[0], stop=x_range[1], num=size)
-            y_data[i, :] = amplitude[i] * np.sin(x_data[i] * freq[i] - phase[i])
+            if not multi_regression or i == 0:
+                x_data[i, :] = np.random.uniform(
+                    low=x_range[0], high=x_range[1], size=samples_per_function
+                )
+                x = x_data[i]
+            y_data[i, :] = amplitude[i] * np.sin(x * freq[i] - phase[i])
         if size == 1:
             return x_data.reshape(samples_per_function, 1), y_data.reshape(
                 samples_per_function
             )
+        if multi_regression:
+            return x_data[0].reshape(samples_per_function,1), y_data.transpose()
         return x_data.reshape(size, samples_per_function, 1), y_data
 
 

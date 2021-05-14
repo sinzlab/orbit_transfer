@@ -186,7 +186,8 @@ class ToyExampleAnalyzer(Analyzer):
 
     @plot
     def plot_dataset(self, fig, ax, data, color, label):
-        ax[0][0].scatter(data[0], data[1], color=color, label=label, marker=".")
+        if len(data[1].shape) == 1:
+            ax[0][0].scatter(data[0], data[1], color=color, label=label, marker=".")
         return fig, ax
 
     def plot_model(self, fig, ax, model, color, label):
