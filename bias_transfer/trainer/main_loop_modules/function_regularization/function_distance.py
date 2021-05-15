@@ -20,7 +20,6 @@ class FunctionDistance(RepresentationRegularization):
         self.inputs = inputs.flatten()
         return super().pre_forward(model, inputs, task_key, shared_memory)
 
-
     def rep_distance(self, output, target, targets, rep_name):
         if self.use_softmax:
             output = F.softmax(output / self.T, dim=1)
@@ -37,15 +36,17 @@ class FunctionDistance(RepresentationRegularization):
         V = targets.get(f"{rep_name}_cov_V")
         if V is not None:
             rep_name_ = rep_name.replace(".", "__")
+
+            V = V.reshape((-1, V.shape[2])).double()
+            # V = V.reshape((V.shape[0],-1)).double()
+            V = (V - torch.mean(V, dim=1, keepdim=True)) / math.sqrt(V.shape[1])
+
             if hasattr(self.trainer.model, f"{rep_name_}_cov_lambdas"):
                 lambdas = self.trainer.model.__getattribute__(
                     f"{rep_name_}_cov_lambdas"
                 )
             else:
-                lambdas = torch.ones(V.shape[2], device=self.device).double()
-
-
-            V = V.reshape((-1, V.shape[2])).double()
+                lambdas = torch.ones(V.shape[-1], device=self.device).double()
 
             eps_inv = 1 / self.eps
             importance = eps_inv * torch.eye(
@@ -66,6 +67,7 @@ class FunctionDistance(RepresentationRegularization):
             # importance = torch.inverse(covariance)
 
             d = (output - target).reshape(-1)
+            # d = (output - target).sum(dim=1)
             # d = (output).reshape(-1)
             fd_loss = d @ importance @ d.T
             # loss_without_det = fd_loss

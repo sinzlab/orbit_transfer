@@ -81,14 +81,8 @@ class ToyExampleAnalyzer(Analyzer):
             if i != plot_model:
                 continue
             restr_0 = config.get_restrictions(level=0)
-            if len(config) == 3:
-                restr_1 = config.get_restrictions(level=1)
-                restr_2 = config.get_restrictions(level=2)
-            elif len(config) == 4:
-                restr_1 = config.get_restrictions(level=2)
-                restr_2 = config.get_restrictions(level=3)
-            else:
-                ValueError("TransferExperiment has wrong length/format!")
+            restr_1 = config.get_restrictions(level=len(config)-2)
+            restr_2 = config.get_restrictions(level=len(config)-1)
 
             model, data = self.retrieve(restr_0)
             if not dataset_plotted:
@@ -99,6 +93,7 @@ class ToyExampleAnalyzer(Analyzer):
                         model=model,
                         color=colors[model_colors[0][0]],
                         label="Source Env. Solution",
+                        alpha=0.3
                     )
                 if plot_source_ds:
                     fig, ax = self.plot_dataset(
@@ -190,7 +185,7 @@ class ToyExampleAnalyzer(Analyzer):
             ax[0][0].scatter(data[0], data[1], color=color, label=label, marker=".")
         return fig, ax
 
-    def plot_model(self, fig, ax, model, color, label):
+    def plot_model(self, fig, ax, model, color, label, alpha=1.0):
         model.eval()
         X_plot = np.linspace(-5, 10, 1000).reshape(-1, 1)
         X_plot_torch = torch.from_numpy(X_plot).type(torch.float32)
@@ -199,7 +194,7 @@ class ToyExampleAnalyzer(Analyzer):
             Y_pred = Y_pred[1]
         Y_pred = Y_pred.detach().numpy()
 
-        ax[0][0].plot(X_plot, Y_pred, color=color, label=label)
+        ax[0][0].plot(X_plot, Y_pred, color=color, label=label, alpha=alpha)
 
     def retrieve_transfer_covariance(self, restr):
         seed = (Seed & restr).fetch1("seed")
@@ -208,7 +203,7 @@ class ToyExampleAnalyzer(Analyzer):
             restr, include_trainer=True, include_state_dict=True, seed=seed
         )
         ds = data_loaders["train"]["transfer"].dataset.target_datasets
-        V = ds.get("layers.6_cov_V", ds.get("layers.9_cov_V")).tensors[0].numpy()
+        V = ds.get("layers.6_cov_V", ds.get("layers.7_cov_V")).tensors[0].numpy()
 
         inputs = (
             data_loaders["train"]["transfer"]
@@ -227,7 +222,11 @@ class ToyExampleAnalyzer(Analyzer):
         # transfer_covariance += np.eye(n) * 0.1
         # importance = np.linalg.inv(transfer_covariance)
 
-        V = V[idx[:, 0]].reshape(V.shape[0], -1)
+        # What we actually use: V = V[idx[:, 0]].reshape(-1, V.shape[2])
+        V = V[idx[:, 0]].reshape(V.shape[0],-1)  # What we want to show
+
+        V = (V - np.mean(V, axis=1, keepdims=True)) / math.sqrt(V.shape[1])
+
         transfer_covariance = V @ V.T
         print(transfer_covariance)
         return transfer_covariance

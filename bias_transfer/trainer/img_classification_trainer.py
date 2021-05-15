@@ -21,6 +21,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
 class ImgClassificationTrainer(Trainer):
     checkpointing_cls = RemoteCheckpointing
+    task = "img_classification"
 
     @property
     def main_loop_modules(self):

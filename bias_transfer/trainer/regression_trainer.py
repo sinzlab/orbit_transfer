@@ -11,6 +11,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
 class RegressionTrainer(ImgClassificationTrainer):
     checkpointing_cls = RemoteCheckpointing
+    task = "regression"
 
     @property
     def tracker(self):
@@ -53,7 +54,6 @@ class RegressionTrainer(ImgClassificationTrainer):
         if not bn_train and self.config.eval_with_bn_train:
             self.test_final_model(epoch, bn_train=" BN=Train")
         # test the final model on the test set
-        print(self.task_keys)
         for k in self.task_keys:
             if k == "transfer":
                 continue
@@ -75,5 +75,4 @@ class RegressionTrainer(ImgClassificationTrainer):
                 cycler="LongCycler",
                 module_options={},
             )
-        print(test_result)
         return test_result

@@ -6,10 +6,11 @@ from nntransfer.trainer.main_loop_modules.main_loop_module import MainLoopModule
 class RepresentationRegularization(MainLoopModule):
     def __init__(self, trainer, name="RDL"):
         super().__init__(trainer)
-        objectives = {  # TODO: make adaptable to other tasks!
-            "Training": {"img_classification": {name: 0}},
-            "Validation": {"img_classification": {name: 0}},
-            "Test": {"img_classification": {name: 0}},
+        self.task = self.trainer.task
+        objectives = {
+            "Training": {self.task: {name: 0}},
+            "Validation": {self.task: {name: 0}},
+            "Test": {self.task: {name: 0}},
         }
         self.tracker.add_objectives(objectives, init_epoch=True)
         self.name = name
@@ -39,7 +40,7 @@ class RepresentationRegularization(MainLoopModule):
                 pred_loss += self.rep_distance(extra_outputs[key], targets[key], targets, key)
             loss += self.alpha * pred_loss
             self.tracker.log_objective(
-                pred_loss.item(), (self.mode, "img_classification", self.name)
+                pred_loss.item() * outputs[1].shape[0], (self.mode, self.task, self.name)
             )
             return outputs, loss, targets.get("class", next(iter(targets.values())))
         else:

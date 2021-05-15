@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 from bias_transfer.dataset.transferred_loader import load_npy
 from bias_transfer.trainer.transfer.kpca import kpca
+from nntransfer.models.utils import copy_ensemble_buffer_to_param
 from nntransfer.models.wrappers import IntermediateLayerGetter
 from nntransfer.trainer.trainer import Trainer
 from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
@@ -73,6 +74,7 @@ class DataGenerator(Trainer):
     def generate_rep_dataset(self, data):
         n_samples = self.config.compute_covariance.get("n_samples", 1)
         outputs = {rep_name: [] for rep_name in self.model.return_layers.keys()}
+        print(self.model)
         for s in range(n_samples):
             if self.config.compute_covariance:
                 task_key = next(iter(self.data_loaders[data].keys()))
@@ -96,6 +98,9 @@ class DataGenerator(Trainer):
                     T = self.config.softmax_temp if self.config.softmax_temp else 1.0
                     out_tensor = F.softmax(out_tensor / T, dim=1)
                 outputs[rep_name].append(out_tensor)
+            if self.config.compute_covariance.get("ensembling"):
+                copy_ensemble_buffer_to_param(self.model, ensemble_iteration=s)
+
         averaged_outputs = {}
         for rep_name, output_samples in outputs.items():
             output_samples = torch.stack(output_samples)
@@ -117,10 +122,10 @@ class DataGenerator(Trainer):
         if self.config.compute_covariance.get("type", "diagonal") == "diagonal":
             return_dict[rep_name + "_var"] = torch.var(reps, dim=0)
         else:
-            ensemble_members, train_samples, rep_dim = reps.shape
-            reps = reps.transpose(0, 1).transpose(1, 2)
-            mean = return_dict[f"{rep_name}"].unsqueeze(-1)
-            return_dict[f"{rep_name}_cov_V"] = (reps - mean) / math.sqrt(ensemble_members - 1)
+            # ensemble_members, train_samples, rep_dim = reps.shape
+            reps = reps.transpose(0, 1).transpose(1, 2)  # train_samples x rep_dim x ensemble_members
+            # mean = return_dict[f"{rep_name}"].unsqueeze(-1)
+            return_dict[f"{rep_name}_cov_V"] = reps #(reps - mean) / math.sqrt(ensemble_members - 1)
             # reps = reps.reshape(
             #     (ensemble_members, -1)
             # ).T  # (train_samples * rep_dim) x ensemble_members
