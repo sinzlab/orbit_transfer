@@ -77,6 +77,8 @@ bias_dict = {
     ),
     "noise": ((apply_gaussian_noise,), ({"severity": -1},)),  # random
     "translation": ((apply_translation,), ({"std": 5},)),
+    "translation_negative": ((apply_translation,), ({"std": 5, "negative_translation": True},)),
+    "translation_positive": ((apply_translation,), ({"std": 5, "positive_translation": True},)),
     "rotation": ((apply_rotation,), ({},)),
     "rotation_regression": ((apply_rotation,), ({"regression": True},)),
     "addition_regression": ((apply_additon,), ({},)),

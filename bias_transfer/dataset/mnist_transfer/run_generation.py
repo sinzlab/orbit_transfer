@@ -12,9 +12,11 @@ def main(dataset="FashionMNIST"):
         # "rotation",
         # "rotation_regression",
         # "noise",
-        "addition_regression",
-        "scale",
-        "addition_regression_noise",
+        # "addition_regression",
+        # "scale",
+        # "addition_regression_noise",
+        "translation_negative",
+        "translation_positive",
     ]:
         generate_and_save(
             bias, base_path="./data/image_classification/torchvision/", dataset=dataset
