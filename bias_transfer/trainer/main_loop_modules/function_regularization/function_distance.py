@@ -15,6 +15,8 @@ class FunctionDistance(RepresentationRegularization):
         self.T = self.config.regularization.get("softmax_temp", 1.0)
         self.use_softmax = self.config.regularization.get("use_softmax", True)
         self.eps = self.config.regularization.get("cov_eps", 1e-12)
+        self.marginalize_over_hidden = self.config.regularization.get("marginalize_over_hidden", True)
+        self.regularize_mean = self.config.regularization.get("regularize_mean", True)
 
     def pre_forward(self, model, inputs, task_key, shared_memory):
         self.inputs = inputs.flatten()
@@ -37,8 +39,10 @@ class FunctionDistance(RepresentationRegularization):
         if V is not None:
             rep_name_ = rep_name.replace(".", "__")
 
-            V = V.reshape((-1, V.shape[2])).double()
-            # V = V.reshape((V.shape[0],-1)).double()
+            if self.marginalize_over_hidden:
+                V = V.reshape((V.shape[0],-1)).double()
+            else:
+                V = V.reshape((-1, V.shape[2])).double()
             V = (V - torch.mean(V, dim=1, keepdim=True)) / math.sqrt(V.shape[1])
 
             if hasattr(self.trainer.model, f"{rep_name_}_cov_lambdas"):
@@ -66,9 +70,16 @@ class FunctionDistance(RepresentationRegularization):
             # covariance += torch.eye(n, device=self.device) * 0.1
             # importance = torch.inverse(covariance)
 
-            d = (output - target).reshape(-1)
-            # d = (output - target).sum(dim=1)
-            # d = (output).reshape(-1)
+            if self.regularize_mean:
+                d = output - target
+            else:
+                d = output
+
+            if self.marginalize_over_hidden:
+                d = d.sum(dim=1)
+            else:
+                d = d.reshape(-1)
+
             fd_loss = d @ importance @ d.T
             # loss_without_det = fd_loss
 

@@ -146,6 +146,7 @@ class ToySineDatasetLoader:
         size,
         samples_per_function,
         multi_regression=False,
+        noise=0.0,
     ):
         amplitude = np.random.uniform(low=amplitude[0], high=amplitude[1], size=size)
         phase = np.random.uniform(low=phase[0], high=phase[1], size=size)
@@ -159,12 +160,14 @@ class ToySineDatasetLoader:
                 )
                 x = x_data[i]
             y_data[i, :] = amplitude[i] * np.sin(x * freq[i] - phase[i])
+        if noise:
+            y_data += np.random.normal(0, noise, y_data.shape)
         if size == 1:
             return x_data.reshape(samples_per_function, 1), y_data.reshape(
                 samples_per_function
             )
         if multi_regression:
-            return x_data[0].reshape(samples_per_function,1), y_data.transpose()
+            return x_data[0].reshape(samples_per_function, 1), y_data.transpose()
         return x_data.reshape(size, samples_per_function, 1), y_data
 
 

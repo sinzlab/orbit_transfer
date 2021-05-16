@@ -203,7 +203,7 @@ class ToyExampleAnalyzer(Analyzer):
             restr, include_trainer=True, include_state_dict=True, seed=seed
         )
         ds = data_loaders["train"]["transfer"].dataset.target_datasets
-        V = ds.get("layers.6_cov_V", ds.get("layers.7_cov_V")).tensors[0].numpy()
+        V = ds.get("layers.6_cov_V", ds.get("layers.9_cov_V")).tensors[0].numpy()
 
         inputs = (
             data_loaders["train"]["transfer"]
