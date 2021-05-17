@@ -98,7 +98,7 @@ class DataGenerator(Trainer):
                     T = self.config.softmax_temp if self.config.softmax_temp else 1.0
                     out_tensor = F.softmax(out_tensor / T, dim=1)
                 outputs[rep_name].append(out_tensor)
-            if self.config.compute_covariance.get("ensembling"):
+            if self.config.compute_covariance.get("ensembling") and s < n_samples -1:
                 copy_ensemble_buffer_to_param(self.model, ensemble_iteration=s)
 
         averaged_outputs = {}
