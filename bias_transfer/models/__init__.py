@@ -1,5 +1,3 @@
-from collections import Sequence, Collection
-
 import torch
 import numpy as np
 from torch.hub import load_state_dict_from_url
@@ -18,22 +16,12 @@ from nntransfer.models.wrappers import *
 from bias_transfer.configs.model import (
     ClassificationModel,
 )
-from .lenet_bayesian import lenet_builder as bayes_builder
+from bias_transfer.models.bayes_by_backprop import lenet_builder as bayes_builder, linear_bayes_builder
 from .lenet_frcl import lenet_builder as frcl_builder
-from .lenet_elrg import lenet_builder as elrg_builder
-from .linear import linear_builder, linear_bayes_builder, linear_elrg_builder
+from bias_transfer.models.elrg import lenet_builder as elrg_builder
+from bias_transfer.models.elrg import linear_elrg_builder
+from .linear import linear_builder
 from .mlp import mlp_builder
-
-
-def neural_cnn_builder(data_loaders, seed: int = 1000, **config):
-    config.pop("comment", None)
-    readout_type = config.pop("readout_type", None)
-    if readout_type == "point":
-        model = se_core_point_readout(dataloaders=data_loaders, seed=seed, **config)
-    elif readout_type == "gauss":
-        model = se_core_gauss_readout(dataloaders=data_loaders, seed=seed, **config)
-    print("Model with {} parameters.".format(get_model_parameters(model)))
-    return model
 
 
 def classification_model_builder(data_loader, seed: int, **config):
@@ -63,7 +51,7 @@ def classification_model_builder(data_loader, seed: int, **config):
         else:
             model = linear_builder(seed, config)
     elif "mlp":
-        model = mlp_builder(seed,config)
+        model = mlp_builder(seed, config)
     else:
         raise Exception("Unknown type {}".format(config.type))
 
@@ -122,28 +110,3 @@ def classification_model_builder(data_loader, seed: int, **config):
             sigmoid_output=config.noise_sigmoid_output,
         )
     return model
-
-
-#
-# def regression_model_builder(data_loader, seed: int, **config):
-#     config = RegressionModel.from_dict(config)
-#     torch.manual_seed(seed)
-#     np.random.seed(seed)
-#
-#     model = MLP(
-#         input_size=config.input_size,
-#         num_layers=config.num_layers,
-#         layer_size=config.layer_size,
-#         output_size=config.output_size,
-#         activation=config.activation,
-#         dropout=config.dropout,
-#     )
-#
-#     # Add wrappers
-#     if config.get_intermediate_rep:
-#         model = IntermediateLayerGetter(
-#             model, return_layers=config.get_intermediate_rep, keep_output=True
-#         )
-#
-#     print("Model with {} parameters.".format(get_model_parameters(model)))
-#     return model

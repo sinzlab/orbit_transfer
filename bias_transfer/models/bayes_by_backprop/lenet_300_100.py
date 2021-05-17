@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 
-from bias_transfer.models.layers.bayes_linear import BayesLinear
+from bias_transfer.models.bayes_by_backprop.linear import BayesLinear
 from nntransfer.models.utils import concatenate_flattened
 
 
@@ -85,20 +84,3 @@ class LeNet300100(nn.Module):
             fc.reset_for_new_task()
 
 
-def lenet_builder(seed: int, config):
-    if "5" in config.type:
-        lenet = LeNet5
-    elif "300-100" in config.type:
-        lenet = LeNet300100
-
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    torch.cuda.manual_seed(seed)
-    model = lenet(
-        num_classes=config.num_classes,
-        input_height=config.input_height,
-        input_width=config.input_width,
-        input_channels=config.input_channels,
-        dropout=config.dropout,
-    )
-    return model
