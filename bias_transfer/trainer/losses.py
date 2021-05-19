@@ -14,13 +14,13 @@ class MSELikelihood(nn.MSELoss):
         return l
 
 
-class CELikelihood(nn.Module):
+class CELikelihood(nn.CrossEntropyLoss):
     def __init__(self, *args, **kwargs):
-        self.loss = nn.CrossEntropyLoss(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.log_var = nn.Parameter(torch.zeros([], dtype=torch.float32))
 
     def forward(self, input, target):
-        l = self.loss(input, target)
+        l = super().forward(input, target)
         l *= torch.exp(-self.log_var)
         l += 0.5 * self.log_var
         return l
