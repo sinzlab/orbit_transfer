@@ -15,8 +15,11 @@ class FunctionDistance(RepresentationRegularization):
         self.T = self.config.regularization.get("softmax_temp", 1.0)
         self.use_softmax = self.config.regularization.get("use_softmax", True)
         self.eps = self.config.regularization.get("cov_eps", 1e-12)
-        self.marginalize_over_hidden = self.config.regularization.get("marginalize_over_hidden", True)
+        self.marginalize_over_hidden = self.config.regularization.get(
+            "marginalize_over_hidden", True
+        )
         self.regularize_mean = self.config.regularization.get("regularize_mean", True)
+        self.add_determinant = self.config.regularization.get("add_determinant", False)
 
     def pre_forward(self, model, inputs, task_key, shared_memory):
         self.inputs = inputs.flatten()
@@ -39,10 +42,17 @@ class FunctionDistance(RepresentationRegularization):
         if V is not None:
             rep_name_ = rep_name.replace(".", "__")
 
-            if self.marginalize_over_hidden:
-                V = V.reshape((V.shape[0],-1)).double()
+            if self.regularize_mean:
+                d = output - target
             else:
-                V = V.reshape((-1, V.shape[2])).double()
+                d = output
+
+            if self.marginalize_over_hidden:
+                V = V.reshape((V.shape[0], -1)).double()  # N x (MD)
+                d = d.mean(dim=1).double()
+            else:
+                V = V.reshape((-1, V.shape[2])).double()  # ND x M
+                d = d.reshape(-1).double()
             V = (V - torch.mean(V, dim=1, keepdim=True)) / math.sqrt(V.shape[1])
 
             if hasattr(self.trainer.model, f"{rep_name_}_cov_lambdas"):
@@ -52,48 +62,37 @@ class FunctionDistance(RepresentationRegularization):
             else:
                 lambdas = torch.ones(V.shape[-1], device=self.device).double()
 
-            eps_inv = 1 / self.eps
-            importance = eps_inv * torch.eye(
-                V.shape[0], device=self.device
-            ).double() - (eps_inv * V) @ torch.inverse(
-                torch.diag(1 / lambdas) + (V.T * eps_inv) @ V
-            ) @ (
-                V.T * eps_inv
-            )
-            importance = importance.type(torch.FloatTensor).to(self.device)
+            if V.shape[0] > V.shape[1]:
+                eps_inv = 1 / self.eps
+                fd_loss = (d * eps_inv) @ d.T
+                fd_loss -= (
+                    d
+                    @ (eps_inv * V)
+                    @ torch.inverse(torch.diag(1 / lambdas) + (V.T * eps_inv) @ V)
+                    @ (V.T * eps_inv)
+                    @ d.T
+                )
+                if self.add_determinant:
+                    n, m = V.shape
+                    logdet = n * math.log(self.eps) + torch.logdet(
+                        torch.eye(m, device=self.device) + (V.T * 1 / self.eps) @ V
+                    )
 
-            # n = output.shape[0]
-            # covariance = torch.zeros((n,n), device=self.device)
-            # for i in range(n):
-            #     # covariance[i, :] = torch.exp(-2 * torch.sin(math.pi * (self.inputs[i] - self.inputs)) ** 2)
-            #     covariance[i,:] = torch.cos(self.inputs[i] - self.inputs)
-            # covariance += torch.eye(n, device=self.device) * 0.1
-            # importance = torch.inverse(covariance)
-
-            if self.regularize_mean:
-                d = output - target
+                    fd_loss += logdet  # + n * math.log(2 * math.pi)
             else:
-                d = output
-
-            if self.marginalize_over_hidden:
-                d = d.sum(dim=1)
-            else:
-                d = d.reshape(-1)
-
-            fd_loss = d @ importance @ d.T
-            # loss_without_det = fd_loss
-
-            # compute determinant:
-            # n, m = V.shape
-            # logdet = math.log(self.eps ** n) + torch.logdet(
-            #     torch.eye(m, device=self.device) + (V.T * eps_inv) @ V
-            # )
-            #
-            # fd_loss += logdet + n * math.log(2 * math.pi)
-
-            # print("Regularizer: ", loss_without_det.item(), 0.5 * fd_loss.item(), logdet.item())
-
-            return fd_loss / V.shape[0]  # normalize by (train_samples * out_classes)
+                importance = torch.inverse(
+                    V @ V.T
+                    + self.eps * torch.eye(V.shape[0], device=self.device).double()
+                )
+                fd_loss = d @ importance @ d.T
+                if self.add_determinant:
+                    n, m = V.shape
+                    fd_loss += torch.logdet(
+                        torch.eye(n, device=self.device) * self.eps + V @ V.T
+                    )
+            return (
+                fd_loss.float() / V.shape[0]
+            )  # normalize by (train_samples * out_classes)
         var = targets.get(f"{rep_name}_var")
         if var is not None:
             importance = 1 / (var + self.eps)

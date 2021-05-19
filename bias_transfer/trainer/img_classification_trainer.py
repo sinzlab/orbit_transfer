@@ -1,4 +1,5 @@
 from functools import partial
+from itertools import chain
 
 from nntransfer.trainer.utils.checkpointing import (
     RemoteCheckpointing,
@@ -10,6 +11,7 @@ from nntransfer.trainer.utils.loss import *
 from .main_loop_modules import *
 from nntransfer.trainer.main_loop_modules import *
 from neuralpredictors.training.tracking import AdvancedTracker
+from .losses import MSELikelihood, CELikelihood
 
 from torch import nn, optim
 
@@ -57,6 +59,7 @@ class ImgClassificationTrainer(Trainer):
 
     def get_training_controls(self):
         criterion, stop_closure = {}, {}
+        parameters = [self.model.parameters()]
         for k in self.task_keys:
             if k == "transfer" or k not in self.config.loss_functions:
                 continue  # no validation on this data and training is handled in mainloop modules
@@ -64,6 +67,8 @@ class ImgClassificationTrainer(Trainer):
                 globals().get(self.config.loss_functions[k])
                 or getattr(nn, self.config.loss_functions[k])
             )()
+            criterion[k] = criterion[k].to(self.device)
+            parameters.append(criterion[k].parameters())
 
             stop_closure[k] = partial(
                 self.main_loop,
@@ -74,7 +79,7 @@ class ImgClassificationTrainer(Trainer):
                 cycler="LongCycler",
             )
         optimizer = getattr(optim, self.config.optimizer)(
-            self.model.parameters(), **self.config.optimizer_options
+            chain(*parameters), **self.config.optimizer_options
         )
         return optimizer, stop_closure, criterion
 

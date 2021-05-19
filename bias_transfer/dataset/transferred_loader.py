@@ -67,10 +67,9 @@ def transferred_dataset_loader(
             transfer_data_loader = torch.utils.data.DataLoader(
                 dataset=transfer_dataset,
                 batch_size=main_data_loader.batch_size,
-                sampler=main_data_loader.sampler,
                 num_workers=main_data_loader.num_workers,
                 pin_memory=main_data_loader.pin_memory,
-                shuffle=False,
+                shuffle=True,
             )
             data_loaders["train"]["transfer"] = transfer_data_loader
         else:  # we don't have input data -> only targets that are presented in parallel to class-labels

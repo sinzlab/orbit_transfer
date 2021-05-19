@@ -202,6 +202,7 @@ class ToyExampleAnalyzer(Analyzer):
         data_loaders, model, _ = TransferredTrainedModel().load_model(
             restr, include_trainer=True, include_state_dict=True, seed=seed
         )
+
         ds = data_loaders["train"]["transfer"].dataset.target_datasets
         V = ds.get("layers.6_cov_V", ds.get("layers.9_cov_V")).tensors[0].numpy()
 
@@ -222,11 +223,18 @@ class ToyExampleAnalyzer(Analyzer):
         # transfer_covariance += np.eye(n) * 0.1
         # importance = np.linalg.inv(transfer_covariance)
 
-        # What we actually use: V = V[idx[:, 0]].reshape(-1, V.shape[2])
-        V = V[idx[:, 0]].reshape(V.shape[0],-1)  # What we want to show
+        config = (Trainer() & restr).fetch1("trainer_config")
+
+        if config.get("regularization",{}).get("marginalize_over_hidden"):
+            V = V[idx[:, 0]].reshape(V.shape[0],-1)  # What we want to show
+        else:
+            V = V[idx[:, 0]].reshape(-1, V.shape[2])
+
 
         V = (V - np.mean(V, axis=1, keepdims=True)) / math.sqrt(V.shape[1])
 
         transfer_covariance = V @ V.T
+
+        transfer_covariance += np.eye(V.shape[0]) * config.get("regularization",{}).get("cov_eps",0.0)
         print(transfer_covariance)
         return transfer_covariance
