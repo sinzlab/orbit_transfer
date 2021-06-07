@@ -101,21 +101,16 @@ class DataGenerator(Trainer):
             if self.config.compute_covariance.get("ensembling") and s < n_samples -1:
                 copy_ensemble_buffer_to_param(self.model, ensemble_iteration=s)
 
-        averaged_outputs = {}
-        for rep_name, output_samples in outputs.items():
-            output_samples = torch.stack(output_samples)
-            averaged_outputs[rep_name] = torch.mean(output_samples, axis=0)
-            if self.config.compute_covariance:
-                self.compute_rep_covariance(output_samples, averaged_outputs, rep_name)
-        outputs = {n: o.numpy() for n, o in averaged_outputs.items()}
+        for rep_name, reps in outputs.items():
+            reps = torch.stack(reps)
+            reps = reps.transpose(0, 1).transpose(1, 2)  # train_samples x rep_dim x ensemble_members
+            outputs[rep_name] = reps.numpy()
         if self.config.save_input:
             collected_inputs = []
             data_loader = next(iter(self.data_loaders[data].values()))
             for src, _ in data_loader:
                 collected_inputs.append(src)
             outputs["source"] = torch.cat(collected_inputs).numpy()
-        for k, o in outputs.items():
-            print(k,o.shape)
         return outputs
 
     def compute_rep_covariance(self, reps, return_dict, rep_name):

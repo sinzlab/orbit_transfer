@@ -15,21 +15,15 @@ from nntransfer.analysis.results.base import Analyzer
 from nntransfer.analysis.plot import plot, save_plot
 
 
-class ToyExampleAnalyzer(Analyzer):
+class CIFARExampleAnalyzer(Analyzer):
     def plot_everything(
         self,
         configs,
         save="",
         style="light_talk",
-        plot_source_ds=True,
-        plot_target_ds=True,
-        plot_eval_ds=True,
-        plot_source_model=True,
-        plot_target_model=True,
         plot_transition=True,
-        plot_model=0,
         data_transfer=False,
-        legend_on_both_ds=False,
+        plot_model=0,
         **kwargs,
     ):
         colors = {
@@ -74,71 +68,23 @@ class ToyExampleAnalyzer(Analyzer):
             # ax[0][0].set_ylim(-10, 10)
             # ax[0][0].set_xlim(-10, 10)
 
-        fig, ax = dummy_plot(ncols=2, style=style, **kwargs)
+        fig, ax = dummy_plot(ncols=1, style=style, **kwargs)
         dataset_plotted = False
 
         for i, (description, config) in enumerate(configs.items()):
             if i != plot_model:
                 continue
             restr_0 = config.get_restrictions(level=0)
-            restr_1 = config.get_restrictions(level=len(config)-2)
-            restr_2 = config.get_restrictions(level=len(config)-1)
+            restr_1 = config.get_restrictions(level=len(config)-1)
 
-            model, data = self.retrieve(restr_0)
-            if not dataset_plotted:
-                if plot_source_model:
-                    self.plot_model(
-                        fig=fig,
-                        ax=ax,
-                        model=model,
-                        color=colors[model_colors[0][0]],
-                        label="Source Env. Solution",
-                        alpha=0.3
-                    )
-                if plot_source_ds:
-                    fig, ax = self.plot_dataset(
-                        fig=fig,
-                        ax=ax,
-                        data=data,
-                        color=colors["dark_red"],
-                        label="Source Environment",
-                        # legend_on_both=legend_on_both_ds,
-                    )
+            # model, data = self.retrieve(restr_0)
 
-            if plot_transition and plot_source_model:
-                transfer_cov, input = self.retrieve_transfer_covariance(restr_1)
+            if plot_transition:
+                transfer_cov = self.retrieve_transfer_covariance(restr_1)
                 if transfer_cov is not None:
-                    cov = ax[0][1].imshow(transfer_cov)
-                    plt.colorbar(cov, ax=ax[0][1])
+                    cov = ax[0][0].imshow(transfer_cov)
+                    plt.colorbar(cov, ax=ax[0][0])
 
-            if not dataset_plotted and plot_eval_ds:
-                _, data = self.retrieve(restr_2)
-                fig, ax = self.plot_dataset(
-                    fig=fig,
-                    ax=ax,
-                    data=data,
-                    color=colors["light_blue"],
-                    label="Evaluation Environment",
-                )
-
-            model, data = self.retrieve(restr_1, data_transfer=data_transfer)
-            if plot_target_model:
-                self.plot_model(
-                    fig=fig,
-                    ax=ax,
-                    model=model,
-                    color=colors[model_colors[i + 1][0]],
-                    label=description.name,
-                )
-            if not dataset_plotted and plot_target_ds:
-                fig, ax = self.plot_dataset(
-                    fig=fig,
-                    ax=ax,
-                    data=data,
-                    color=colors["dark_blue"],
-                    label="Target Environment",
-                )
-            dataset_plotted = True
         legend_args = {
             "fontsize": 12,
             "title_fontsize": "13",
@@ -155,7 +101,7 @@ class ToyExampleAnalyzer(Analyzer):
                 save,
                 types=("png", "pdf", "pgf") if "tex" in style else ("png", "pdf"),
             )
-        return transfer_cov, input
+        return transfer_cov
 
     def retrieve(self, restr, data_transfer=False):
         seed = (Seed & restr).fetch1("seed")
@@ -164,7 +110,7 @@ class ToyExampleAnalyzer(Analyzer):
         data_loaders, model = TransferredTrainedModel().load_model(
             restr, include_trainer=False, include_state_dict=False, seed=seed
         )
-        train_points, train_labels = data_loaders["train"]["regression"].dataset.tensors
+        train_points, train_labels = data_loaders["train"]["img_classification"].dataset.tensors
         data = (train_points.numpy(), train_labels.numpy().squeeze())
         with tempfile.TemporaryDirectory() as temp_dir:
             file = (TransferredTrainedModel.ModelStorage & restr).fetch1(
@@ -179,40 +125,19 @@ class ToyExampleAnalyzer(Analyzer):
         plt.imshow(K_plot)
         plt.colorbar()
 
-    @plot
-    def plot_dataset(self, fig, ax, data, color, label):
-        if len(data[1].shape) == 1:
-            ax[0][0].scatter(data[0], data[1], color=color, label=label, marker=".")
-        return fig, ax
-
-    def plot_model(self, fig, ax, model, color, label, alpha=1.0):
-        model.eval()
-        X_plot = np.linspace(-5, 10, 1000).reshape(-1, 1)
-        X_plot_torch = torch.from_numpy(X_plot).type(torch.float32)
-        Y_pred = model(X_plot_torch)
-        if isinstance(Y_pred, tuple):
-            Y_pred = Y_pred[1]
-        Y_pred = Y_pred.detach().numpy()
-
-        ax[0][0].plot(X_plot, Y_pred, color=color, label=label, alpha=alpha)
-
     def retrieve_transfer_covariance(self, restr):
         seed = (Seed & restr).fetch1("seed")
         restr["data_transfer"] = True
-        data_loaders, model, _ = TransferredTrainedModel().load_model(
-            restr, include_trainer=True, include_state_dict=True, seed=seed
-        )
 
-        ds = data_loaders["train"]["transfer"].dataset.target_datasets
-        V = ds.get("layers.6", ds.get("layers.9")).tensors[0].numpy()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file = ((TransferredTrainedModel.DataStorage) & restr).fetch1("transfer_data", download_path=temp_dir)
+            transfer_data = np.load(file)
 
-        inputs = (
-            data_loaders["train"]["transfer"]
-            .dataset.source_datasets["img"]
-            .tensors[0]
-            .numpy()
-        )
-        idx = np.argsort(inputs, axis=0)
+        V = transfer_data.get("fc2_cov_V", transfer_data.get("fc3_cov_V"))
+
+        inputs = transfer_data["source"]
+        # idx = np.argsort(inputs, axis=0)
+        idx = np.arange(0,500)
 
         n = inputs.shape[0]
         # inputs = inputs[idx].reshape(n)
@@ -225,10 +150,13 @@ class ToyExampleAnalyzer(Analyzer):
 
         config = (Trainer() & restr).fetch1("trainer_config")
 
+        print(idx.shape)
         if config.get("regularization",{}).get("marginalize_over_hidden"):
-            V = V[idx[:, 0]].reshape(V.shape[0],-1)  # What we want to show
+            V = V[idx].reshape(V.shape[0],-1)  # What we want to show
         else:
-            V = V[idx[:, 0]].reshape(-1, V.shape[2])
+            V = V[idx].reshape(-1, V.shape[2])
+
+        print(V.shape)
 
 
         V = (V - np.mean(V, axis=1, keepdims=True)) / math.sqrt(V.shape[1])
@@ -237,4 +165,4 @@ class ToyExampleAnalyzer(Analyzer):
 
         transfer_covariance += np.eye(V.shape[0]) * config.get("regularization",{}).get("cov_eps",0.0)
         print(transfer_covariance)
-        return transfer_covariance, inputs
+        return transfer_covariance

@@ -30,7 +30,9 @@ class ImgClassificationTrainer(Trainer):
         try:
             return self._main_loop_modules
         except AttributeError:
-            self._main_loop_modules = [globals().get(k)(trainer=self) for k in self.config.main_loop_modules]
+            self._main_loop_modules = [
+                globals().get(k)(trainer=self) for k in self.config.main_loop_modules
+            ]
             return self._main_loop_modules
 
     @property
@@ -41,12 +43,18 @@ class ImgClassificationTrainer(Trainer):
             objectives = {
                 "LR": 0,
                 "Training": {
-                    "img_classification": {"loss": 0, "accuracy": 0, "normalization": 0}
+                    "img_classification": {
+                        "loss": 0,
+                        "accuracy": 0,
+                        "normalization": 0,
+                        "std": 0.0,
+                    }
                 },
                 "Validation": {
                     "img_classification": {
                         "loss": 0,
                         "accuracy": 0,
+                        "std": 0,
                         "normalization": 0,
                     },
                     "patience": 0,
@@ -59,16 +67,21 @@ class ImgClassificationTrainer(Trainer):
 
     def get_training_controls(self):
         criterion, stop_closure = {}, {}
-        parameters = [self.model.parameters()]
         for k in self.task_keys:
             if k == "transfer" or k not in self.config.loss_functions:
                 continue  # no validation on this data and training is handled in mainloop modules
+            opts = (
+                self.config.loss_function_options[k]
+                if self.config.loss_function_options
+                else {}
+            )
+            if opts:
+                opts["model"] = self.model
             criterion[k] = (
                 globals().get(self.config.loss_functions[k])
                 or getattr(nn, self.config.loss_functions[k])
-            )()
+            )(**opts)
             criterion[k] = criterion[k].to(self.device)
-            parameters.append(criterion[k].parameters())
 
             stop_closure[k] = partial(
                 self.main_loop,
@@ -79,7 +92,7 @@ class ImgClassificationTrainer(Trainer):
                 cycler="LongCycler",
             )
         optimizer = getattr(optim, self.config.optimizer)(
-            chain(*parameters), **self.config.optimizer_options
+            self.model.parameters(), **self.config.optimizer_options
         )
         return optimizer, stop_closure, criterion
 
@@ -131,6 +144,16 @@ class ImgClassificationTrainer(Trainer):
                 loss.item() * batch_size,
                 key=(mode, task_key, "loss"),
             )
+            if hasattr(self.criterion[task_key], "log_var"):
+                self.tracker.log_objective(
+                    (torch.exp(self.criterion[task_key].log_var) ** 0.5).item()
+                    * batch_size,
+                    (
+                        mode,
+                        task_key,
+                        "std",
+                    ),
+                )
         return loss
 
     def test_final_model(self, epoch, bn_train=""):
@@ -159,6 +182,7 @@ class ImgClassificationTrainer(Trainer):
                                     "accuracy": 0,
                                     "loss": 0,
                                     "normalization": 0,
+                                    "std": 0,
                                 }
                             }
                         }
@@ -184,6 +208,7 @@ class ImgClassificationTrainer(Trainer):
                         "accuracy": 0,
                         "loss": 0,
                         "normalization": 0,
+                        "std": 0,
                     }
                 }
             }
@@ -211,6 +236,7 @@ class ImgClassificationTrainer(Trainer):
                                         "accuracy": 0,
                                         "loss": 0,
                                         "normalization": 0,
+                                        "std": 0,
                                     }
                                 }
                             }

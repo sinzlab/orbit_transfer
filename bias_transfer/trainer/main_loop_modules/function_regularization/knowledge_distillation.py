@@ -14,7 +14,7 @@ class KnowledgeDistillation(RepresentationRegularization):
 
     def rep_distance(self, output, target, *args, **kwargs):
         kd_loss = self.criterion(
-            F.log_softmax(output / self.T, dim=1), F.softmax(target / self.T, dim=1)
+            F.log_softmax(output / self.T, dim=1), F.softmax(target.squeeze() / self.T, dim=1)
         )
         return kd_loss * self.T * self.T
 

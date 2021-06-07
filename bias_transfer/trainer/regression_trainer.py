@@ -1,3 +1,5 @@
+import torch
+
 from nntransfer.trainer.utils.checkpointing import RemoteCheckpointing
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from nntransfer.trainer.utils import get_subdict, arctanh
@@ -20,9 +22,14 @@ class RegressionTrainer(ImgClassificationTrainer):
         except AttributeError:
             objectives = {
                 "LR": 0,
-                "Training": {"regression": {"loss": 0, "normalization": 0}},
+                "Training": {"regression": {"loss": 0, "normalization": 0,
+                                            "std": 0,
+                                            },
+                             },
                 "Validation": {
-                    "regression": {"loss": 0, "normalization": 0},
+                    "regression": {"loss": 0, "normalization": 0,
+                                   "std": 0,
+                                   },
                     "patience": 0,
                 },
             }
@@ -48,6 +55,10 @@ class RegressionTrainer(ImgClassificationTrainer):
                 loss.item() * batch_size,
                 key=(mode, task_key, "loss"),
             )
+            if hasattr(self.criterion[task_key],"log_var") :
+                self.tracker.log_objective(
+                    (torch.exp(self.criterion[task_key].log_var)**0.5).item()*batch_size, (mode, task_key, "std",)
+                )
         return loss
 
     def test_final_model(self, epoch, bn_train=""):
@@ -63,6 +74,7 @@ class RegressionTrainer(ImgClassificationTrainer):
                     k: {
                         "loss": 0,
                         "normalization": 0,
+                        "std": 0,
                     }
                 }
             }
