@@ -1,6 +1,6 @@
 import torch
 
-from nntransfer.trainer.utils.checkpointing import RemoteCheckpointing
+from nntransfer.trainer.utils.checkpointing import RemoteCheckpointing, LocalCheckpointing
 from bias_transfer.trainer.img_classification_trainer import ImgClassificationTrainer
 from nntransfer.trainer.utils import get_subdict, arctanh
 from neuralpredictors.training.tracking import AdvancedTracker
@@ -12,7 +12,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
 
 class RegressionTrainer(ImgClassificationTrainer):
-    checkpointing_cls = RemoteCheckpointing
+    checkpointing_cls = LocalCheckpointing
     task = "regression"
 
     @property

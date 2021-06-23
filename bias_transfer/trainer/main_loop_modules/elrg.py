@@ -24,14 +24,14 @@ class ELRG(MainLoopModule):
         return model_, inputs
 
     def post_forward(self, outputs, loss, targets, **shared_memory):
-        loss += self._calculate_kl_term() / self.train_len
+        loss += self._calculate_kl_term() / self.train_len  # usually this will be the main loss
         targets = torch.cat(self.num_samples * [targets])
         return outputs, loss, targets
 
     def _calculate_kl_term(self):
         """
         Calculates and returns the KL divergence of the new posterior and the previous
-        iteration's posterior. See equation L3, slide 14.
+        iteration's posterior.
         """
         model = self.trainer.model
         means = model.get_parameters("posterior_mean")

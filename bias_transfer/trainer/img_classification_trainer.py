@@ -22,7 +22,7 @@ def trainer(model, dataloaders, seed, uid, cb, eval_only=False, **kwargs):
 
 
 class ImgClassificationTrainer(Trainer):
-    checkpointing_cls = RemoteCheckpointing
+    checkpointing_cls = LocalCheckpointing
     task = "img_classification"
 
     @property
