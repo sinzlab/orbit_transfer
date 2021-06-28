@@ -37,7 +37,7 @@ class FunctionDistance(RepresentationRegularization):
         self.inputs = inputs.flatten()
         return super().pre_forward(model, inputs, task_key, shared_memory)
 
-    def rep_distance(self, output, target, targets, rep_name):
+    def rep_distance(self, output, target):
         if self.use_softmax:
             output = F.softmax(output / self.T, dim=1)
 

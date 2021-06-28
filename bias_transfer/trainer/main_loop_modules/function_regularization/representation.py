@@ -37,7 +37,7 @@ class RepresentationRegularization(MainLoopModule):
             for key in targets.keys():
                 if key == "class" or "var" in key or "cov" in key:
                     continue
-                pred_loss += self.rep_distance(extra_outputs[key], targets[key], targets, key)
+                pred_loss += self.rep_distance(extra_outputs[key], targets[key])
                 if not rep_batch_size:
                     rep_batch_size = targets[key].shape[0]
             loss += self.alpha * pred_loss

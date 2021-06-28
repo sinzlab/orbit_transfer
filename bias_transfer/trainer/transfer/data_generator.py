@@ -93,7 +93,7 @@ class DataGenerator(Trainer):
             for rep_name in collected_outputs[0].keys():
                 out_tensor = torch.cat(
                     [batch_output[rep_name] for batch_output in collected_outputs]
-                )
+                ).flatten(1,-1)
                 if self.config.apply_softmax:
                     T = self.config.softmax_temp if self.config.softmax_temp else 1.0
                     out_tensor = F.softmax(out_tensor / T, dim=1)
