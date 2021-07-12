@@ -12,11 +12,12 @@ class FunctionDistance(RepresentationRegularization):
     def __init__(self, trainer):
         super().__init__(trainer, name="FD")
         self.criterion = nn.KLDivLoss(reduction="batchmean")
+        self.cov_mode = self.config.regularization.get("mode", "full")
         self.T = self.config.regularization.get("softmax_temp", 1.0)
         self.use_softmax = self.config.regularization.get("use_softmax", True)
-        self.log_var =     torch.tensor(
-                self.config.regularization.get("log_var", 0), device=self.device
-            )
+        self.log_var = torch.tensor(
+            self.config.regularization.get("log_var", 0), device=self.device
+        )
         if self.config.regularization.get("learn_log_var", False):
             self.log_var = nn.Parameter(self.log_var)
             trainer.model._model.fd_log_var = self.log_var
@@ -65,39 +66,46 @@ class FunctionDistance(RepresentationRegularization):
 
         V = (V - torch.mean(V, dim=1, keepdim=True)) / math.sqrt(V.shape[1])
 
-        if V.shape[0] > V.shape[1]:
-            var_inv = torch.exp(-self.log_var)
-            importance_left = var_inv * V
-            importance_middle = torch.inverse(
-                torch.eye(V.shape[-1], device=self.device).double()
-                + (V.T * var_inv) @ V
-            )
-            fd_loss = torch.zeros([], device=self.device)
-            fd_loss += torch.trace((d * var_inv) @ d.T)
-            fd_loss -= torch.trace(
-                d @ importance_left @ importance_middle @ importance_left.T @ d.T
-            )
-            if self.add_determinant:
-                n, m = V.shape
-                logdet = n * self.log_var + torch.logdet(
-                    torch.eye(m, device=self.device) + (V.T * var_inv) @ V
-                )
-                fd_loss += margin_dim * logdet
+        n, m = V.shape
+        fd_loss = torch.zeros([], device=self.device)
+        if self.cov_mode == "diagonal":
+            var = torch.var(V)+ torch.exp(self.log_var)
+            importance = 1.0 / var
+            fd_loss += torch.trace(importance * d @ d.T)
+            fd_loss += margin_dim * torch.sum(torch.log(var))
+        elif self.cov_mode == "":
+            fd_loss += torch.exp(self.log_var) * torch.trace(d @ d.T)
+            fd_loss += n * margin_dim * self.log_var
         else:
-            importance = torch.inverse(
-                V @ V.T
-                + torch.exp(self.log_var)
-                * torch.eye(V.shape[0], device=self.device).double()
-            )
-
-            fd_loss = torch.zeros([], device=self.device)
-            fd_loss += torch.trace(d @ importance @ d.T)
-            if self.add_determinant:
-                n, m = V.shape
-                logdet = torch.logdet(
-                    torch.eye(n, device=self.device) * torch.exp(self.log_var) + V @ V.T
+            if V.shape[0] > V.shape[1]:
+                var_inv = torch.exp(-self.log_var)
+                importance_left = var_inv * V
+                importance_middle = torch.inverse(
+                    torch.eye(V.shape[-1], device=self.device).double()
+                    + (V.T * var_inv) @ V
                 )
-                fd_loss += margin_dim * logdet
+                fd_loss += torch.trace((d * var_inv) @ d.T)
+                fd_loss -= torch.trace(
+                    d @ importance_left @ importance_middle @ importance_left.T @ d.T
+                )
+                if self.add_determinant:
+                    logdet = n * self.log_var + torch.logdet(
+                        torch.eye(m, device=self.device) + (V.T * var_inv) @ V
+                    )
+                    fd_loss += margin_dim * logdet
+            else:
+                importance = torch.inverse(
+                    V @ V.T
+                    + torch.exp(self.log_var)
+                    * torch.eye(V.shape[0], device=self.device).double()
+                )
+                fd_loss += torch.trace(d @ importance @ d.T)
+                if self.add_determinant:
+                    logdet = torch.logdet(
+                        torch.eye(n, device=self.device) * torch.exp(self.log_var)
+                        + V @ V.T
+                    )
+                    fd_loss += margin_dim * logdet
 
         self.tracker.log_objective(
             (torch.exp(self.log_var) ** 0.5).item() * batch_size,

@@ -128,7 +128,7 @@ class ToyExampleAnalyzer(Analyzer):
                     ax=ax,
                     model=model,
                     color=colors[model_colors[i + 1][0]],
-                    label=description.name,
+                    label="Target Env. Solution",
                 )
             if not dataset_plotted and plot_target_ds:
                 fig, ax = self.plot_dataset(
@@ -139,6 +139,7 @@ class ToyExampleAnalyzer(Analyzer):
                     label="Target Environment",
                 )
             dataset_plotted = True
+        ax[0][0].set_ylim(-2.2, 2.2)
         legend_args = {
             "fontsize": 12,
             "title_fontsize": "13",
@@ -146,16 +147,19 @@ class ToyExampleAnalyzer(Analyzer):
             "borderaxespad": 0.0,
             "bbox_to_anchor": (0.1, 1.1),
             "loc": "lower left",
-            "ncol": 3,
+            "ncol": 2,
         }
         ax[0][0].legend(**legend_args)
+        handles, labels = ax[0][0].get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        ax[0][0].legend(by_label.values(), by_label.keys(), **legend_args)
         if save:
             save_plot(
                 fig,
                 save,
                 types=("png", "pdf", "pgf") if "tex" in style else ("png", "pdf"),
             )
-        return transfer_cov, input
+        # return transfer_cov, input
 
     def retrieve(self, restr, data_transfer=False):
         seed = (Seed & restr).fetch1("seed")

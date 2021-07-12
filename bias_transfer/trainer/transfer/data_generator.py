@@ -93,17 +93,19 @@ class DataGenerator(Trainer):
             for rep_name in collected_outputs[0].keys():
                 out_tensor = torch.cat(
                     [batch_output[rep_name] for batch_output in collected_outputs]
-                ).flatten(1,-1)
+                ).flatten(1, -1)
                 if self.config.apply_softmax:
                     T = self.config.softmax_temp if self.config.softmax_temp else 1.0
                     out_tensor = F.softmax(out_tensor / T, dim=1)
                 outputs[rep_name].append(out_tensor)
-            if self.config.compute_covariance.get("ensembling") and s < n_samples -1:
+            if self.config.compute_covariance.get("ensembling") and s < n_samples - 1:
                 copy_ensemble_buffer_to_param(self.model, ensemble_iteration=s)
 
         for rep_name, reps in outputs.items():
             reps = torch.stack(reps)
-            reps = reps.transpose(0, 1).transpose(1, 2)  # train_samples x rep_dim x ensemble_members
+            reps = reps.transpose(0, 1).transpose(
+                1, 2
+            )  # train_samples x rep_dim x ensemble_members
             outputs[rep_name] = reps.numpy()
         if self.config.save_input:
             collected_inputs = []
@@ -113,41 +115,6 @@ class DataGenerator(Trainer):
             outputs["source"] = torch.cat(collected_inputs).numpy()
         return outputs
 
-    def compute_rep_covariance(self, reps, return_dict, rep_name):
-        if self.config.compute_covariance.get("type", "diagonal") == "diagonal":
-            return_dict[rep_name + "_var"] = torch.var(reps, dim=0)
-        else:
-            # ensemble_members, train_samples, rep_dim = reps.shape
-            reps = reps.transpose(0, 1).transpose(1, 2)  # train_samples x rep_dim x ensemble_members
-            # mean = return_dict[f"{rep_name}"].unsqueeze(-1)
-            return_dict[f"{rep_name}_cov_V"] = reps #(reps - mean) / math.sqrt(ensemble_members - 1)
-            # reps = reps.reshape(
-            #     (ensemble_members, -1)
-            # ).T  # (train_samples * rep_dim) x ensemble_members
-            # eps_inv = 1 / self.config.compute_covariance.get("eps", 1e-10)
-            # if self.config.compute_covariance.get("precision", "float") == "double":
-            #     reps = reps.type(torch.DoubleTensor)
-            # rank = self.config.compute_covariance.get("n_components", reps.shape[1])
-            # vs, lambdas = kpca(reps, n_components=rank)
-            # print(vs, lambdas)
-            # C = vs @ torch.diag(lambdas) @ vs.T + eps -> NxN
-            # A = eps_inv * vs  # -> NxM
-            # B = (
-            #     torch.inverse(torch.diag(1 / lambdas) + (vs.T * eps_inv) @ vs)
-            #     @ (vs.T * eps_inv)
-            # ).T  # -> NxM
-            # return_dict[rep_name + "_cov_A"] = A.reshape(
-            #     (train_samples, rep_dim, ensemble_members)
-            # )
-            # return_dict[rep_name + "_cov_B"] = B.reshape(
-            #     (train_samples, rep_dim, ensemble_members)
-            # )
-            # C_inv = eps_inv - A @ B.T
-            # return_dict[f"{rep_name}_cov_V"] = reps.reshape(
-            #     (train_samples, rep_dim, ensemble_members)
-            # )
-            # rep_name_ = rep_name.replace(".", "__")
-            # self.model._model.register_buffer(f"{rep_name_}_cov_lambdas", lambdas)
 
     def estimate_fisher(self, data):
         task_key = next(iter(self.data_loaders[data].keys()))
