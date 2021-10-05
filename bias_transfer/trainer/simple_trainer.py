@@ -362,8 +362,11 @@ def train(
 def trainer_fn(
     model, dataloaders, seed, uid, cb, eval_only=False, student_model=None, **kwargs
 ):
-    teacher_model = model
-    model = model_fn(dataloaders, seed, **student_model)
+    if student_model:
+        teacher_model = model
+        model = model_fn(dataloaders, seed, **student_model)
+    else:
+        teacher_model = None
 
     random.seed(seed)
     np.random.seed(seed)
