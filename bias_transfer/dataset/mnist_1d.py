@@ -97,14 +97,21 @@ def dataset_fn(seed, **config):
 
     train_data = copy.deepcopy(data)
     test_data = copy.deepcopy(data)
+    test_all_data= copy.deepcopy(data)
 
-    if config.train_shift:
+    if config.train_shift is not None:
         def shift_data(data, min_shift, max_shift):
             for l in ["x", "x_test", "x_validation"]:
-                shift = np.random.randint(min_shift, max_shift, data[l].shape[0])
+                if min_shift >= max_shift:
+                    shift = (int(min_shift) * np.ones(data[l].shape[0]))
+                else:
+                    shift = np.random.randint(min_shift, max_shift, data[l].shape[0])
+                print("shift:", shift)
                 for i in range(data[l].shape[0]):
                     data[l][i] = np.roll(data[l][i], shift[i], axis=-1)
+        print(config.train_shift)
         shift_data(train_data, 0, config.train_shift)
         shift_data(test_data, config.train_shift, 40)
+        shift_data(test_all_data, 0, 40)
 
-    return {"train": train_data, "test": test_data}
+    return {"train": train_data, "test": test_data, "test_all": test_all_data}

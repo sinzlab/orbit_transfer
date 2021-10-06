@@ -8,7 +8,11 @@ import numpy as np
 from torch import nn
 
 from bias_transfer.configs.trainer.simple_trainer import SimpleTrainerConfig
-from bias_transfer.models.mnist_1d import LearnedEquivariance, StaticLearnedEquivariance, model_fn
+from bias_transfer.models.mnist_1d import (
+    LearnedEquivariance,
+    StaticLearnedEquivariance,
+    model_fn,
+)
 from bias_transfer.trainer.forward_methods import (
     ce_forward,
     equiv_transfer_forward,
@@ -174,6 +178,7 @@ def compute_measures(x, y, forward, model, teacher, rep_layer, teacher_rep_layer
 def full_eval(
     train_data,
     test_data,
+    test_all_data,
     model,
     teacher,
     rep_layer,
@@ -182,72 +187,45 @@ def full_eval(
     device="cuda",
 ):
     result = {}
-    x_train = torch.Tensor(train_data["x"]).to(device)
-    y_train = torch.LongTensor(train_data["y"]).to(device)
-    result["train"] = compute_measures(
-        x_train,
-        y_train,
-        forward,
-        model,
-        teacher,
-        rep_layer,
-        teacher_rep_layer,
-    )
-    x_val = torch.Tensor(train_data["x_validation"]).to(device)
-    y_val = torch.LongTensor(train_data["y_validation"]).to(device)
-    result["validation"] = compute_measures(
-        x_val,
-        y_val,
-        forward,
-        model,
-        teacher,
-        rep_layer,
-        teacher_rep_layer,
-    )
-    x_test = torch.Tensor(train_data["x_test"]).to(device)
-    y_test = torch.LongTensor(train_data["y_test"]).to(device)
-    result["test"] = compute_measures(
-        x_test,
-        y_test,
-        forward,
-        model,
-        teacher,
-        rep_layer,
-        teacher_rep_layer,
-    )
-    x_train_shift = torch.Tensor(test_data["x"]).to(device)
-    y_train_shift = torch.LongTensor(test_data["y"]).to(device)
-    result["train_shift"] = compute_measures(
-        x_train_shift,
-        y_train_shift,
-        forward,
-        model,
-        teacher,
-        rep_layer,
-        teacher_rep_layer,
-    )
-    x_val_shift = torch.Tensor(test_data["x_validation"]).to(device)
-    y_val_shift = torch.LongTensor(test_data["y_validation"]).to(device)
-    result["validataion_shift"] = compute_measures(
-        x_val_shift,
-        y_val_shift,
-        forward,
-        model,
-        teacher,
-        rep_layer,
-        teacher_rep_layer,
-    )
-    x_test_shift = torch.Tensor(test_data["x_test"]).to(device)
-    y_test_shift = torch.LongTensor(test_data["y_test"]).to(device)
-    result["test_shift"] = compute_measures(
-        x_test_shift,
-        y_test_shift,
-        forward,
-        model,
-        teacher,
-        rep_layer,
-        teacher_rep_layer,
-    )
+
+    def helper(data, postfix=""):
+        x_train = torch.Tensor(data["x"]).to(device)
+        y_train = torch.LongTensor(data["y"]).to(device)
+        result["train" + postfix] = compute_measures(
+            x_train,
+            y_train,
+            forward,
+            model,
+            teacher,
+            rep_layer,
+            teacher_rep_layer,
+        )
+        x_val = torch.Tensor(data["x_validation"]).to(device)
+        y_val = torch.LongTensor(data["y_validation"]).to(device)
+        result["validation" + postfix] = compute_measures(
+            x_val,
+            y_val,
+            forward,
+            model,
+            teacher,
+            rep_layer,
+            teacher_rep_layer,
+        )
+        x_test = torch.Tensor(data["x_test"]).to(device)
+        y_test = torch.LongTensor(data["y_test"]).to(device)
+        result["test" + postfix] = compute_measures(
+            x_test,
+            y_test,
+            forward,
+            model,
+            teacher,
+            rep_layer,
+            teacher_rep_layer,
+        )
+
+    helper(train_data, postfix="")
+    helper(test_data, postfix="_shift")
+    helper(test_all_data, postfix="_all")
     return result
 
 
@@ -406,6 +384,7 @@ def trainer_fn(
         results["final"] = full_eval(
             dataloaders["train"],
             dataloaders["test"],
+            dataloaders["test_all"],
             model,
             teacher_model,
             config.rep_layer,
@@ -413,6 +392,6 @@ def trainer_fn(
             forward,
             device="cuda",
         )
-        return results["final"]["test_shift"]["acc"], results, model.state_dict()
+        return results["final"]["test_all"]["acc"], results, model.state_dict()
     else:
         return min(results["val_losses"]), results, model.state_dict()
