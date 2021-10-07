@@ -43,9 +43,17 @@ def accuracy(model, inputs, targets):
         model, StaticLearnedEquivariance
     ):
         return 0.0
-    preds = model(inputs)[1].argmax(-1).detach().cpu().numpy()
     targets = targets.cpu().numpy().astype(np.float32)
-    return 100 * sum(preds == targets) / len(targets)
+    true_pred = 0
+    if inputs.shape[0] > 1000:
+        for b in range(inputs.shape[0] // 1000):
+            upper = min(1000 * (b + 1), inputs.shape[0])
+            preds = model(inputs[1000 * b : upper].to("cuda"))[1].argmax(-1).detach().cpu().numpy()
+            true_pred += sum(preds == targets[1000 * b : upper])
+    else:
+        preds = model(inputs.to("cuda"))[1].argmax(-1).detach().cpu().numpy()
+        true_pred = sum(preds == targets)
+    return 100 * true_pred / len(targets)
 
 
 def test_model(dataset, model, device="cuda"):
@@ -153,12 +161,27 @@ def ce_dft_forward(model, x, model_out, y, teacher_model, n_split, h_split):
     return F.cross_entropy(model_out[1], y, reduction="mean") + match
 
 
-def compute_measures(x, y, forward, model, teacher, rep_layer, teacher_rep_layer):
-    dist = nn.MSELoss()
+def compute_measures(x, y, forward, model, teacher_model, gamma):
     result = {}
     result["acc"] = accuracy(model, x, y)
-    out = model(x)
-    result["ce_loss"] = F.cross_entropy(out[1], y, reduction="mean").item()
+
+    total_loss = 0
+    total_reg = 0
+    if x.shape[0] > 500:
+        for b in range(x.shape[0] // 500):
+            upper = min(500 * (b + 1), x.shape[0])
+            loss, reg = forward(
+                model, x[500 * b : upper].to("cuda"), y[500 * b : upper].to("cuda"), teacher_model
+            )
+            total_loss += loss.detach().item()
+            total_reg += reg.detach().item()
+    else:
+        loss, reg = forward(model, x.to("cuda"), y.to("cuda"), teacher_model)
+        total_loss += loss.detach().item()
+        total_reg += reg.detach().item()
+    result["ce_loss"] = total_loss
+    result["reg"] = total_reg
+    result["loss"] = (1.0 - gamma) * total_loss + gamma * total_reg
     # result["loss"] = forward(model, x, y, teacher)[0].item()
     # if teacher is not None:
     #     # result["translation_distance"] = translation_distance(
@@ -183,44 +206,32 @@ def full_eval(
     teacher,
     rep_layer,
     teacher_rep_layer,
+    gamma,
     forward,
     device="cuda",
 ):
     result = {}
 
     def helper(data, postfix=""):
-        x_train = torch.Tensor(data["x"]).to(device)
-        y_train = torch.LongTensor(data["y"]).to(device)
+        x_train = torch.Tensor(data["x"])
+        y_train = torch.LongTensor(data["y"])
         result["train" + postfix] = compute_measures(
             x_train,
             y_train,
             forward,
             model,
             teacher,
-            rep_layer,
-            teacher_rep_layer,
+            gamma,
         )
-        x_val = torch.Tensor(data["x_validation"]).to(device)
-        y_val = torch.LongTensor(data["y_validation"]).to(device)
+        x_val = torch.Tensor(data["x_validation"])
+        y_val = torch.LongTensor(data["y_validation"])
         result["validation" + postfix] = compute_measures(
-            x_val,
-            y_val,
-            forward,
-            model,
-            teacher,
-            rep_layer,
-            teacher_rep_layer,
+            x_val, y_val, forward, model, teacher,  gamma
         )
-        x_test = torch.Tensor(data["x_test"]).to(device)
-        y_test = torch.LongTensor(data["y_test"]).to(device)
+        x_test = torch.Tensor(data["x_test"])
+        y_test = torch.LongTensor(data["y_test"])
         result["test" + postfix] = compute_measures(
-            x_test,
-            y_test,
-            forward,
-            model,
-            teacher,
-            rep_layer,
-            teacher_rep_layer,
+            x_test, y_test, forward, model, teacher,  gamma
         )
 
     helper(train_data, postfix="")
@@ -230,7 +241,7 @@ def full_eval(
 
 
 def train(
-    dataset,
+    dataloaders,
     model,
     forward_fct,
     config,
@@ -244,7 +255,7 @@ def train(
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=config.lr_decay, patience=config.patience
     )
-
+    dataset = dataloaders["train"]
     x_train, x_val = torch.Tensor(dataset["x"]), torch.Tensor(dataset["x_validation"])
     y_train, y_val = torch.LongTensor(dataset["y"]), torch.LongTensor(
         dataset["y_validation"]
@@ -258,16 +269,9 @@ def train(
         v.to(config.device) for v in [x_train, x_val, y_train, y_val]
     ]
 
-    results = {
-        "train_losses": [],
-        "val_losses": [],
-        "train_regularizer": [],
-        "val_regularizer": [],
-        "train_acc": [],
-        "val_acc": [],
-    }
+    results = []
     t0 = time.time()
-    best_loss = 1e10
+    best_acc = 0
     best_model = None
     patience_counter = 0
     decay_counter = 0
@@ -282,9 +286,15 @@ def train(
             x = torch.roll(x, shift, dims=-1)
         loss, regularizer = forward_fct(model, x, y, teacher_model=teacher_model)
 
-        results["train_losses"].append(loss.item())
-        results["train_regularizer"].append(regularizer.item())
+        # results["train_losses"].append(loss.item())
+        # results["train_regularizer"].append(regularizer.item())
         loss = (1.0 - config.gamma) * loss + config.gamma * regularizer
+
+        # L1_reg = 0.0
+        # for name, param in model.named_parameters():
+        #     if 'weight' in name:
+        #         L1_reg = L1_reg + torch.norm(param, 1)
+        # loss = loss + config.weight_decay * L1_reg
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
@@ -292,17 +302,25 @@ def train(
         if (
             config.eval_every > 0 and step % config.eval_every == 0
         ):  # evaluate the model
-            val_loss, val_regularizer = forward_fct(
-                model, x_val, y_val, teacher_model=teacher_model
-            )
-            results["val_losses"].append(val_loss.item())
-            results["val_regularizer"].append(val_regularizer.item())
-            results["train_acc"].append(accuracy(model, x_train, y_train))
-            results["val_acc"].append(accuracy(model, x_val, y_val))
-            val_loss = (1.0 - config.gamma) * val_loss + config.gamma * val_regularizer
 
-            if val_loss < best_loss and step > 0:
-                best_loss = val_loss
+            results.append(
+                full_eval(
+                    dataloaders["train"],
+                    dataloaders["test"],
+                    dataloaders["test_all"],
+                    model,
+                    teacher_model,
+                    config.rep_layer,
+                    config.teacher_rep_layer,
+                    config.gamma,
+                    forward_fct,
+                    device="cuda",
+                )
+            )
+            val_acc = results[-1]["validation"]["acc"]
+
+            if val_acc > best_acc and step > 0:
+                best_acc = val_acc
                 best_model = copy.deepcopy(model.state_dict())
                 patience_counter = 0
             else:
@@ -314,14 +332,15 @@ def train(
                     break
                 decay_counter += 1
                 patience_counter = 0
-            scheduler.step(val_loss)
+            scheduler.step(val_acc)
 
         if step % config.print_every == 0:  # print out training progress
             t1 = time.time()
             print(
-                f"step {step}, dt {t1 - t0}s, train_loss {results['train_losses'][-1]}, val_loss {results['val_losses'][-1]}, "
-                f"train_reg {results['train_regularizer'][-1]}, val_reg {results['val_regularizer'][-1]}, "
-                f"train_acc {results['train_acc'][-1]}, val_acc {results['val_acc'][-1]}"
+                f"step {step}, dt {t1 - t0}s, train_loss {results[-1]['train']['loss']}, "
+                f"val_loss {results[-1]['validation']['loss']}, val_ce {results[-1]['validation']['ce_loss']}, "
+                f"train_reg {results[-1]['train']['reg']}, val_reg {results[-1]['validation']['reg']}, "
+                f"train_acc {results[-1]['train']['acc']}, val_acc {results[-1]['validation']['acc']}"
             )
             t0 = t1
 
@@ -353,7 +372,7 @@ def trainer_fn(
     torch.backends.cudnn.benchmark = False
 
     config = SimpleTrainerConfig.from_dict(kwargs)
-
+    print("Running: ", config.forward)
     if config.forward == "kd":
         forward = kd_forward
     elif config.forward == "kd_match":
@@ -372,26 +391,29 @@ def trainer_fn(
         forward = ce_forward
     forward = partial(forward, config=config)
     results = train(
-        dataloaders["train"],
+        dataloaders,
         model,
         forward,
         teacher_model=teacher_model,
         config=config,
     )
+    final_results = full_eval(
+        dataloaders["train"],
+        dataloaders["test"],
+        dataloaders["test_all"],
+        model,
+        teacher_model,
+        config.rep_layer,
+        config.teacher_rep_layer,
+        config.gamma,
+        forward,
+        device="cuda",
+    )
+    results = {"final": final_results, "progress": results}
+    print(results["final"])
     if not isinstance(model, LearnedEquivariance) and not isinstance(
-        model, StaticLearnedEquivariance
+            model, StaticLearnedEquivariance
     ):
-        results["final"] = full_eval(
-            dataloaders["train"],
-            dataloaders["test"],
-            dataloaders["test_all"],
-            model,
-            teacher_model,
-            config.rep_layer,
-            config.teacher_rep_layer,
-            forward,
-            device="cuda",
-        )
         return results["final"]["test_all"]["acc"], results, model.state_dict()
     else:
-        return min(results["val_losses"]), results, model.state_dict()
+        return results["final"]["test_all"]["loss"], results, model.state_dict()

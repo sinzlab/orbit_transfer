@@ -104,8 +104,9 @@ def kd_forward(model, x, y, teacher_model, config):
         F.kl_div(
             F.log_softmax(model_out[1] / config.softmax_temp, dim=1),
             F.softmax(teacher_model(x)[1] / config.softmax_temp, dim=1),
-            reduction="mean",
-        ),
+            reduction="batchmean",  # batchmean?
+        )
+        * config.softmax_temp ** 2,
     )
 
 
@@ -161,7 +162,9 @@ def cka_forward(model, x, y, teacher_model, config):
     match = 0.0
     for layer in model_out[0].keys():
         teacher_layer = layer.replace("linear", "conv")
-        match -= RDL.linear_CKA(model_out[0][layer].flatten(1), teacher_out[0][teacher_layer].flatten(1))
+        match -= RDL.linear_CKA(
+            model_out[0][layer].flatten(1), teacher_out[0][teacher_layer].flatten(1)
+        )
     match -= RDL.linear_CKA(model_out[1], teacher_out[1])
     return F.cross_entropy(model_out[1], y, reduction="mean"), match
 

@@ -1,3 +1,8 @@
+import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
+
+from nntransfer.analysis.plot import plot
 from nntransfer.analysis.results.base import Analyzer
 from nntransfer.tables.transfer import TransferredTrainedModel
 
@@ -29,8 +34,16 @@ class SimpleAnalyzer(Analyzer):
 
     def generate_table(
         self,
-        objective=("Test", "img_classification", "accuracy"),
-        last_n=0,
+        objectives=(
+            ("final", "train", "acc"),
+            ("final", "test", "acc"),
+            ("final", "validation", "acc"),
+            # ("final", "validation_shift", "acc"),
+            ("final", "test_shift", "acc"),
+            # ("final", "validation_all", "acc"),
+            ("final", "test_all", "acc"),
+        ),
+        last_n=1,
         label_steps=False,
     ):
         row_list = []
@@ -51,7 +64,11 @@ class SimpleAnalyzer(Analyzer):
                         l = levels.index(level)
                         if labels:
                             l = labels[l]
-                        row[l] = tracker.get_current_objective(objective)
+                        for obj in objectives:
+                            res = tracker
+                            for key in obj:
+                                res = res[key]
+                            row[f"{l} {obj[-2]}"] = res
                 except:
                     pass  # no valid entry for this objective
             row_list.append(row)
@@ -64,6 +81,116 @@ class SimpleAnalyzer(Analyzer):
             if len(new.columns) > 1:
                 df.drop(columns=["name"], inplace=True)
                 df["name"] = new[0]
-                df["alpha"] = new[1]
+                df["hyps"] = new[1]
+            new = df["hyps"].str.split(" ", expand=True)
+            if len(new.columns) > 1:
+                df.drop(columns=["hyps"], inplace=True)
+                for c in new.columns[1:]:
+                    split = new[c].str.split("=", n=2, expand=True)
+                    df[split[0][0]] = pd.to_numeric(split[1])
             df = df.set_index("name")
         return df
+
+    @plot
+    def plot_gamma_line(
+        self,
+        to_plot,
+        fig=None,
+        ax=None,
+        rename=lambda x: x,
+        x_var="gamma",
+        x_var_rename="$\gamma$",
+        objectives={
+            "0 train": "Train",
+            "0 test": "Test (Seen Shift)",
+            "0 validation": "Validation (Seen Shift)",
+            # "0 validation_shift": "Validation (Unseen Shift)",
+            "0 test_shift": "Test (Unseen Shift)",
+            # "0 validation_all": "Validation (All Shift)",
+            "0 test_all": "Test (All Shift)",
+        },
+        **kwargs,
+    ):
+        df = self.generate_table()
+        df = df.rename(columns=objectives)
+
+        value_vars = list(objectives.values())
+        id_vars = [c for c in df.columns if c not in value_vars]
+
+        cols = len(ax[0])
+        for i, name in enumerate(df.index.unique()):
+            r = i // cols
+            c = i % cols
+            sub_df = df.loc[df.index == name]
+            self.single_plot(
+                sub_df,
+                ax[r][c],
+                legend=(i==0),
+                value_vars=value_vars,
+                id_vars=id_vars,
+                x_var=x_var,
+                x_var_rename=x_var_rename,
+                name=name
+            )
+            if c > 0:
+                ax[r][c].set_ylabel("")
+            if r < len(ax)-1:
+                ax[r][c].set_xlabel("")
+        ax[-1, -1].axis('off')
+        ax[0][0].get_legend().remove()
+        fig.legend(bbox_to_anchor=(1.1,0.4))
+
+    def single_plot(
+        self,
+        df,
+        ax,
+        legend,
+        value_vars,
+        id_vars,
+        x_var,
+        x_var_rename,
+        name
+    ):
+        max_df = df
+        max_row = df.iloc[[df["Validation (Seen Shift)"].argmax()]]
+        for var in id_vars:
+            if var == x_var:
+                continue
+            if max_df[var].isnull().values.any() or max_row[var].isnull().values.any():
+                continue
+            max_df = max_df.loc[max_df[var] == max_row[var].iat[0]]
+
+        def plot_helper(df, alpha, legend, style):
+            df = pd.melt(
+                df,
+                id_vars=id_vars,
+                value_vars=value_vars,
+                var_name="Set",
+                value_name="Acc",
+                ignore_index=False,
+            )
+            df = df.rename(columns={x_var: x_var_rename, "Acc": "Accuracy [%]"})
+            hyps = [c for c in id_vars if c != x_var]
+            df["hyps"] = df[hyps[0]].astype(str)
+            del df[hyps[0]]
+            for hyp in hyps[1:]:
+                df["hyps"] = df["hyps"] + df[hyp].astype(str)
+                del df[hyp]
+
+            sns.lineplot(
+                x=x_var_rename,
+                y="Accuracy [%]",
+                data=df,
+                hue="Set",
+                ax=ax,
+                style=style,
+                markers=False,
+                dashes=False,
+                alpha=alpha,
+                legend=legend,
+            )
+            ax.set_ylim(0, 100)
+
+        plot_helper(max_df, alpha=1.0, legend=legend, style="Set")
+        ax.set_title(name)
+        # plot_helper(df, alpha=0.05, legend=legend, style="hyps")

@@ -84,7 +84,7 @@ def dataset_fn(seed, **config):
             data = pkl.load(handle)
     else:
         with tempfile.TemporaryDirectory() as temp_dir:
-            data_path = (DataStorage & {"name": "mnist1d_raw"}).fetch1("data", download_path=temp_dir)
+            data_path = (DataStorage & {"id": "mnist1d_raw_50k"}).fetch1("data", download_path=temp_dir)
             with open(data_path, 'rb') as f:
                 data = pkl.load(f)
 
@@ -105,11 +105,10 @@ def dataset_fn(seed, **config):
                 if min_shift >= max_shift:
                     shift = (int(min_shift) * np.ones(data[l].shape[0]))
                 else:
+                    np.random.seed(seed)
                     shift = np.random.randint(min_shift, max_shift, data[l].shape[0])
-                print("shift:", shift)
                 for i in range(data[l].shape[0]):
                     data[l][i] = np.roll(data[l][i], shift[i], axis=-1)
-        print(config.train_shift)
         shift_data(train_data, 0, config.train_shift)
         shift_data(test_data, config.train_shift, 40)
         shift_data(test_all_data, 0, 40)

@@ -247,6 +247,39 @@ class LCSingleLayer(nn.Module):
         return self.linear(h1)  # a linear classifier goes on top
 
 
+
+class FullyConvLCN(nn.Module):
+    def __init__(self, channels, linear_in, padding, stride, kernel_size):
+        super().__init__()
+        self.linear1 = LocallyConnected1d(
+            1,
+            channels,
+            36,
+            kernel_size,
+            stride=stride,
+            # padding=padding,
+            bias=False,
+            # padding_mode="circular",
+        )
+
+        self.linear2 = LocallyConnected1d(
+            channels,
+            10,
+            32,
+            kernel_size,
+            stride=stride,
+            # padding=padding,
+            bias=False,
+            # padding_mode="circular",
+        )
+
+    def forward(self, x, verbose=False):  # the print statements are for debugging
+        x = x.view(-1, 1, x.shape[-1])
+        h1 = self.linear1(x).relu()
+        h2 = self.linear2(h1)
+        return torch.max(h2, dim=2)[0]
+
+
 class FullyConv(nn.Module):
     def __init__(self, channels, linear_in, padding, stride, kernel_size):
         super().__init__()
@@ -443,7 +476,7 @@ def model_fn(data_loader, seed: int, **config):
             )
             + 1
         ) * config.channels  # ([(W-K+2P)/S]+1 ) * channels
-        model = FCSingleLayer(config.input_size, linear_in)
+        model = FCSingleLayer(config.input_size, config.hidden_dim)
         get_layers = {"linear1": "linear1", "linear2": "linear2"}
     elif config.type == "conv_single":
         linear_in = (
@@ -477,6 +510,22 @@ def model_fn(data_loader, seed: int, **config):
             kernel_size=config.kernel_size,
         )
         get_layers = {"conv1": "conv1", "conv2": "conv2"}
+    elif config.type == "fully_conv_single_lcn":
+        linear_in = (
+                            (
+                                    (config.input_size - config.kernel_size + 2 * config.padding)
+                                    // config.stride
+                            )
+                            + 1
+                    ) * config.channels  # ([(W-K+2P)/S]+1 ) * channels
+        model = FullyConvLCN(
+            channels=config.channels,
+            linear_in=linear_in,
+            padding=config.padding,
+            stride=config.stride,
+            kernel_size=config.kernel_size,
+        )
+        get_layers = {"linear1": "linear1", "linear2": "linear2"}
     elif config.type == "fully_conv_single":
         linear_in = (
             (
