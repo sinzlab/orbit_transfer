@@ -38,7 +38,7 @@ def linear_elrg_builder(seed: int, config):
         config.num_classes,
         bias=False,
         rank=config.rank,
-        alpha=config.alpha,
+        alpha=config.gamma,
         train_var=config.train_var,
         initial_posterior_var=config.initial_var
     )

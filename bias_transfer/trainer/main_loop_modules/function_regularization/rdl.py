@@ -109,7 +109,7 @@ class RDL(RepresentationRegularization):
 
     def rep_distance(self, output, target):
         if self.dist_measure == "CKA":
-            return RDL.linear_CKA(output, target)
+            return RDL.linear_CKA(output.flatten(1), target.flatten(1))
         else:
             return RDL.rdm_comparison(
                 output,

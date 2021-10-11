@@ -41,8 +41,8 @@ class ImgClassificationTrainer(Trainer):
             return self._tracker
         except AttributeError:
             objectives = {
-                "LR": 0,
                 "Training": {
+                    "LR": 0,
                     "img_classification": {
                         "loss": 0,
                         "accuracy": 0,
@@ -61,7 +61,10 @@ class ImgClassificationTrainer(Trainer):
                 },
             }
             self._tracker = AdvancedTracker(
-                main_objective=("img_classification", "accuracy"), **objectives
+                main_objective=("img_classification", "loss")
+                if self.config.main_objective == "loss"
+                else ("img_classification", "accuracy"),
+                **objectives
             )
             return self._tracker
 
@@ -129,7 +132,12 @@ class ImgClassificationTrainer(Trainer):
                 self.config.regularization
                 and self.config.regularization.get("regularizer") == "Mixup"
             ):  # otherwise this is done in the mainloop-module
-                loss += self.criterion[task_key](outputs, targets)
+                gamma = 0.0
+                for module in self.main_loop_modules:
+                    if hasattr(module, "gamma"):
+                        gamma = module.gamma
+                        break
+                loss += self.criterion[task_key](outputs, targets) * (1 - gamma)
                 _, predicted = outputs.max(1)
                 self.tracker.log_objective(
                     100 * predicted.eq(targets).sum().item(),
@@ -228,11 +236,12 @@ class ImgClassificationTrainer(Trainer):
                         for c_level, data_loader in self.data_loaders["c_test"][k][
                             c_category
                         ].items():
+                            # TODO make work again for multiple c_level!
 
                             objectives = {
                                 c_category
                                 + bn_train: {
-                                    str(c_level): {
+                                    "img_classification": {
                                         "accuracy": 0,
                                         "loss": 0,
                                         "normalization": 0,
@@ -243,7 +252,7 @@ class ImgClassificationTrainer(Trainer):
                             self.tracker.add_objectives(objectives, init_epoch=True)
                             self.main_loop(
                                 epoch=epoch,
-                                data_loader={str(c_level): data_loader},
+                                data_loader={"img_classification": data_loader},
                                 mode=c_category + bn_train,
                                 cycler_args={},
                                 cycler="LongCycler",
@@ -254,6 +263,26 @@ class ImgClassificationTrainer(Trainer):
                 epoch=epoch,
                 data_loader={"img_classification": self.data_loaders["st_test"]},
                 mode="Test-ST" + bn_train,
+                cycler_args={},
+                cycler="LongCycler",
+                module_options=deactivate_options,
+            )
+        if "rot_test" in self.data_loaders:
+            objectives = {
+                "Rotation Test": {
+                    "img_classification": {
+                        "accuracy": 0,
+                        "loss": 0,
+                        "normalization": 0,
+                        "std": 0,
+                    }
+                }
+            }
+            self.tracker.add_objectives(objectives, init_epoch=True)
+            self.main_loop(
+                epoch=epoch,
+                data_loader={"img_classification": self.data_loaders["rot_test"]},
+                mode="Rotation Test" + bn_train,
                 cycler_args={},
                 cycler="LongCycler",
                 module_options=deactivate_options,

@@ -15,12 +15,12 @@ class Sin(torch.nn.Module):
 class MLP(torch.nn.Module):
     def __init__(
         self,
-        input_size,
         num_layers,
         layer_size,
         output_size,
         activation="sigmoid",
         dropout=None,
+        batch_norm=False,
     ):
         super(MLP, self).__init__()
 
@@ -33,16 +33,15 @@ class MLP(torch.nn.Module):
         else:
             activation_module = torch.nn.Sigmoid()
 
-        self.layers = nn.ModuleList([nn.Linear(input_size, layer_size, bias=True)])
-        self.layers.append(activation_module)
-        for i in range(1, num_layers - 1):
+        self.layers = nn.ModuleList([nn.Flatten()])
+        for l in range(0, num_layers - 1):
+            self.layers.append(nn.Linear(layer_size[l], layer_size[l+1], bias=True))
+            self.layers.append(activation_module)
+            if batch_norm:
+                self.layers.append(nn.BatchNorm1d(layer_size[l+1]))
             if dropout is not None:
                 self.layers.append(nn.Dropout(p=dropout))
-            self.layers.append(nn.Linear(layer_size, layer_size, bias=True))
-            self.layers.append(activation_module)
-        if dropout is not None:
-            self.layers.append(nn.Dropout(p=dropout))
-        self.layers.append(nn.Linear(layer_size, output_size, bias=False))
+        self.layers.append(nn.Linear(layer_size[num_layers-1], output_size, bias=False))
 
     def forward(self, x, inverse=False):
         for i, layer in enumerate(self.layers):
@@ -60,11 +59,11 @@ class MLP(torch.nn.Module):
 
 def mlp_builder(seed: int, config):
     model = MLP(
-        input_size=config.input_size,
         num_layers=config.num_layers,
         layer_size=config.layer_size,
         output_size=config.output_size,
         activation=config.activation,
         dropout=config.dropout,
+        batch_norm=config.batch_norm,
     )
     return model

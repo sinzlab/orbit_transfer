@@ -104,6 +104,7 @@ class TorchvisionDatasetLoader(ImageDatasetLoader):
 
         st_test_dataset = self.add_stylized_test(config, transform_test)
         c_test_datasets = self.add_corrupted_test(config, transform_test)
+        rotated_test_dataset = self.add_rotated_test(config, test_dataset)
 
         return (
             train_dataset,
@@ -111,6 +112,7 @@ class TorchvisionDatasetLoader(ImageDatasetLoader):
             test_dataset,
             c_test_datasets,
             st_test_dataset,
+            rotated_test_dataset
         )
 
 

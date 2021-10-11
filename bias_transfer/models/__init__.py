@@ -16,7 +16,13 @@ from nntransfer.models.wrappers import *
 from bias_transfer.configs.model import (
     ClassificationModel,
 )
-from bias_transfer.models.bayes_by_backprop import lenet_builder as bayes_builder, linear_bayes_builder
+from bias_transfer.models.bayes_by_backprop import (
+    lenet_builder as bayes_builder,
+    linear_bayes_builder,
+)
+from .cnn import cnn_builder
+from .group_cnn import gcnn_builder
+from .learned_equiv import equiv_builder
 from .lenet_frcl import lenet_builder as frcl_builder
 from bias_transfer.models.elrg import lenet_builder as elrg_builder
 from bias_transfer.models.elrg import linear_elrg_builder
@@ -50,8 +56,14 @@ def classification_model_builder(data_loader, seed: int, **config):
             model = linear_elrg_builder(seed, config)
         else:
             model = linear_builder(seed, config)
-    elif "mlp":
+    elif "mlp" in config.type:
         model = mlp_builder(seed, config)
+    elif "gcnn" in config.type:
+        model = gcnn_builder(seed, config)
+    elif "cnn" in config.type:
+        model = cnn_builder(seed, config)
+    elif "equiv_transfer" in config.type:
+        model = equiv_builder(seed, config)
     else:
         raise Exception("Unknown type {}".format(config.type))
 

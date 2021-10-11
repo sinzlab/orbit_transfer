@@ -9,4 +9,6 @@ from .function_regularization.rdl import RDL
 from .function_regularization.frcl import FRCL
 from .function_regularization.fromp import FROMP
 from .function_regularization.knowledge_distillation import KnowledgeDistillation
+from .function_regularization.attention_transfer import AttentionTransfer
+from .function_regularization.equivariance_transfer import EquivarianceTransfer
 from .function_regularization.function_distance import FunctionDistance

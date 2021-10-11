@@ -7,4 +7,6 @@ class MNIST(ImageDatasetConfig):
         self.dataset_cls: str = "MNIST"
         self.input_width: int = 28
         self.input_height: int = 28
+        self.apply_augmentation: bool = False
+        self.apply_normalization: bool = False
         super().__init__(**kwargs)

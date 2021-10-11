@@ -54,7 +54,12 @@ class SimpleAnalyzer(Analyzer):
                 labels = name_split[-1][1:-1].split(";")
             else:
                 name, labels = (desc.name, None)
-            row = {"name": name}
+            row = {"name": name.split(":")[0]}
+            for hyp in name.split(":")[1].split(" "):
+                if len(hyp.split("=")) != 2:
+                    continue
+                hyp_name, hyp_value = hyp.split("=")
+                row[hyp_name] = hyp_value
             levels = sorted(list(results.keys()))
             if last_n:
                 levels = levels[(-1) * last_n :]
@@ -73,22 +78,23 @@ class SimpleAnalyzer(Analyzer):
                     pass  # no valid entry for this objective
             row_list.append(row)
         df = pd.DataFrame(row_list)
-        if not df.empty:
-            df = df.groupby("name").first()
-            # Split off alpha from name
-            df = df.reset_index()
-            new = df["name"].str.split(":", n=1, expand=True)
-            if len(new.columns) > 1:
-                df.drop(columns=["name"], inplace=True)
-                df["name"] = new[0]
-                df["hyps"] = new[1]
-            new = df["hyps"].str.split(" ", expand=True)
-            if len(new.columns) > 1:
-                df.drop(columns=["hyps"], inplace=True)
-                for c in new.columns[1:]:
-                    split = new[c].str.split("=", n=2, expand=True)
-                    df[split[0][0]] = pd.to_numeric(split[1])
-            df = df.set_index("name")
+        # if not df.empty:
+        #     df = df.groupby("name").first()
+        #     # Split off alpha from name
+        #     df = df.reset_index()
+        #     new = df["name"].str.split(":", n=1, expand=True)
+        #     if len(new.columns) > 1:
+        #         df.drop(columns=["name"], inplace=True)
+        #         df["name"] = new[0]
+        #         df["hyps"] = new[1]
+            # return df
+            # new = df["hyps"].str.split(" ", expand=True)
+            # if len(new.columns) > 1:
+            #     df.drop(columns=["hyps"], inplace=True)
+            #     for c in new.columns[1:]:
+            #         split = new[c].str.split("=", n=2, expand=True)
+            #         df[split[0][0]] = pd.to_numeric(split[1])
+        df = df.set_index("name")
         return df
 
     @plot
@@ -136,7 +142,7 @@ class SimpleAnalyzer(Analyzer):
                 ax[r][c].set_ylabel("")
             if r < len(ax)-1:
                 ax[r][c].set_xlabel("")
-        ax[-1, -1].axis('off')
+        ax[-1][-1].axis('off')
         ax[0][0].get_legend().remove()
         fig.legend(bbox_to_anchor=(1.1,0.4))
 
@@ -193,4 +199,4 @@ class SimpleAnalyzer(Analyzer):
 
         plot_helper(max_df, alpha=1.0, legend=legend, style="Set")
         ax.set_title(name)
-        # plot_helper(df, alpha=0.05, legend=legend, style="hyps")
+        plot_helper(df, alpha=0.05, legend=False, style="hyps")

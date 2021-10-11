@@ -38,7 +38,7 @@ class ELRG(MainLoopModule):
         vs = model.get_parameters("posterior_v", keep_first_dim=True)
         log_vars = model.get_parameters("posterior_log_var")
         vars = torch.exp(log_vars)
-        alpha = model.alpha
+        alpha = model.gamma
         D = means.shape[0]
 
         # Calculate KL for individual normal distributions over parameters
