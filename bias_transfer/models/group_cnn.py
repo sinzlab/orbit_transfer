@@ -14,6 +14,7 @@ class GCNN(torch.nn.Module):
         self.conv4 = ConvP4(64, output_size, 3)
         self.pool4 = MaxRotationPoolP4()
         self.pool5 = torch.nn.AdaptiveAvgPool2d(1)
+        self.flatten = torch.nn.Flatten()
 
     def forward(self, x):
         x = self.conv1(x)
@@ -25,7 +26,7 @@ class GCNN(torch.nn.Module):
         x = self.conv4(x)
         x = self.pool4(x)
         x = self.pool5(x)
-        x = x.squeeze(-1).squeeze(-1)
+        x = self.flatten(x)
         return x
 
 

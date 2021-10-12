@@ -7,18 +7,17 @@ import numpy as np
 import torch.nn.functional as F
 
 
-
 class StaticLearnedEquivariance(nn.Module):
     def __init__(self, kernel_size=5, group_size=40, layers=0):
         super().__init__()
         self.kernels = torch.nn.Parameter(torch.randn((group_size, kernel_size)))
         if layers:
-            self.layer_transforms = nn.Sequential(
-                *[
+            self.layer_transforms = nn.ModuleList(
+                [
                     nn.Linear(kernel_size, kernel_size, bias=True)
                     for _ in range(layers - 1)
-                ],
-                nn.Linear(kernel_size, 10, bias=True),
+                ]
+                + [nn.Linear(kernel_size, 10, bias=True)],
             )
         else:
             self.layer_transforms = None
@@ -51,11 +50,11 @@ class StaticLearnedEquivariance(nn.Module):
         )  # switch channel with batch dimension to apply different kernel to each sample (based on g)
         kernel = self.kernels[g]
         if self.layer_transforms is not None and l > 0:
-            kernel = self.layer_transforms[: l + 1](kernel)
+            kernel = self.layer_transforms[l](kernel)
             if l == len(self.layer_transforms) - 1:
                 padding = self.reduced_padding
             else:
-                padding =self.full_padding
+                padding = self.full_padding
         else:
             padding = self.full_padding
         kernel = kernel.unsqueeze(
@@ -72,6 +71,7 @@ class StaticLearnedEquivariance(nn.Module):
         # print("out", out.shape)
         return x.permute(1, 0, 2)
 
+
 class LearnedEquivariance(nn.Module):
     def __init__(self, kernel_size=5, group_size=40, layers=0):
         super().__init__()
@@ -80,12 +80,12 @@ class LearnedEquivariance(nn.Module):
             torch.randn((group_size * 2 + 1, kernel_size))
         )
         if layers:
-            self.layer_transforms = nn.Sequential(
-                *[
+            self.layer_transforms = nn.ModuleList(
+                [
                     nn.Linear(kernel_size, kernel_size, bias=True)
                     for _ in range(layers - 1)
-                ],
-                nn.Linear(kernel_size, 10, bias=True),
+                ]
+                + [nn.Linear(kernel_size, 10, bias=True)]
             )
         else:
             self.layer_transforms = None
@@ -123,7 +123,7 @@ class LearnedEquivariance(nn.Module):
         # print("G in", g)
 
         # print("g", g)
-        iterations = torch.abs(g / self.group_size).to("cuda").reshape(-1,1,1)
+        iterations = torch.abs(g / self.group_size).to("cuda").reshape(-1, 1, 1)
         # print("iterations", iterations)
         max_iterations = torch.max(iterations)
         # print("max iterations", max_iterations)
@@ -132,12 +132,14 @@ class LearnedEquivariance(nn.Module):
         max_kernel = self.kernels[sign * self.group_size + self.group_size]
         identity_kernel = self.kernels[self.group_size]
         if self.layer_transforms is not None and l > 0:
-            max_kernel = self.layer_transforms[: l + 1](max_kernel)
+            max_kernel = self.layer_transforms[l](max_kernel)
             identity_kernel = self.layer_transforms[: l + 1](identity_kernel)
         max_kernel = max_kernel.unsqueeze(
             1
         )  # [batch_size, 1, k] -> [out_channels, in_channels/groups, k]
-        identity_kernel = identity_kernel.reshape(1,1,-1).expand(max_kernel.shape[0],-1,-1)
+        identity_kernel = identity_kernel.reshape(1, 1, -1).expand(
+            max_kernel.shape[0], -1, -1
+        )
         for i in range(max_iterations):
             kernel = torch.where(i >= iterations, identity_kernel, max_kernel)
             x = F.conv1d(
@@ -245,7 +247,6 @@ class LCSingleLayer(nn.Module):
         h1 = self.lc1(x).relu()
         h1 = h1.view(h1.shape[0], -1)  # flatten the conv features
         return self.linear(h1)  # a linear classifier goes on top
-
 
 
 class FullyConvLCN(nn.Module):
@@ -460,12 +461,16 @@ def model_fn(data_loader, seed: int, **config):
 
     if config.type == "equivariance_transfer":
         model = LearnedEquivariance(
-            kernel_size=config.kernel_size, group_size=config.group_size, layers=config.layers
+            kernel_size=config.kernel_size,
+            group_size=config.group_size,
+            layers=config.layers,
         )
         get_layers = {}
     elif config.type == "static_equivariance_transfer":
         model = StaticLearnedEquivariance(
-            kernel_size=config.kernel_size, group_size=config.group_size, layers=config.layers
+            kernel_size=config.kernel_size,
+            group_size=config.group_size,
+            layers=config.layers,
         )
         get_layers = {}
     elif config.type == "fc_single":
@@ -512,12 +517,12 @@ def model_fn(data_loader, seed: int, **config):
         get_layers = {"conv1": "conv1", "conv2": "conv2"}
     elif config.type == "fully_conv_single_lcn":
         linear_in = (
-                            (
-                                    (config.input_size - config.kernel_size + 2 * config.padding)
-                                    // config.stride
-                            )
-                            + 1
-                    ) * config.channels  # ([(W-K+2P)/S]+1 ) * channels
+            (
+                (config.input_size - config.kernel_size + 2 * config.padding)
+                // config.stride
+            )
+            + 1
+        ) * config.channels  # ([(W-K+2P)/S]+1 ) * channels
         model = FullyConvLCN(
             channels=config.channels,
             linear_in=linear_in,

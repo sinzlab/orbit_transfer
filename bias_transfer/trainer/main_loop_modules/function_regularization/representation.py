@@ -46,7 +46,7 @@ class RepresentationRegularization(MainLoopModule):
                 targets.update(shared_memory["teacher_output"][0])
             pred_loss = torch.zeros(1, device=self.device)
             rep_batch_size = 0
-            for key in targets.keys():
+            for key in extra_outputs.keys():
                 if key == "class" or "var" in key or "cov" in key:
                     continue
                 pred_loss += self.rep_distance(extra_outputs[key], targets[key])

@@ -84,7 +84,7 @@ def dataset_fn(seed, **config):
             data = pkl.load(handle)
     else:
         with tempfile.TemporaryDirectory() as temp_dir:
-            data_path = (DataStorage & {"id": "mnist1d_raw_50k"}).fetch1("data", download_path=temp_dir)
+            data_path = (DataStorage & {"id": "mnist1d_raw"}).fetch1("data", download_path=temp_dir)
             with open(data_path, 'rb') as f:
                 data = pkl.load(f)
 

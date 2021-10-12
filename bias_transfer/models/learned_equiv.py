@@ -21,6 +21,7 @@ class LearnedEquivariance1D(nn.Module):
     def __init__(self, kernel_size=5, group_size=40, num_layers=0, output_size=10):
         super().__init__()
         self.kernels = torch.nn.Parameter(torch.randn((group_size, kernel_size)))
+
         if num_layers:
             self.layer_transforms = nn.Sequential(
                 *[
@@ -49,7 +50,6 @@ class LearnedEquivariance1D(nn.Module):
     def forward(self, x, g=None, l=0, n=1):
         if g is None:
             return 0
-
         shape = x.shape
         # print("x", x.shape)
         x = x.view(shape[0], 1, -1)
@@ -91,11 +91,24 @@ class LearnedEquivariance1D(nn.Module):
 
 
 class LearnedEquivariance(nn.Module):
-    def __init__(self, kernel_size=5, group_size=40, num_layers=0, output_size=10):
+    def __init__(
+        self,
+        kernel_size=5,
+        group_size=40,
+        num_layers=0,
+        output_size=10,
+        gold_init=False,
+    ):
         super().__init__()
         self.kernels = torch.nn.Parameter(
             torch.randn((group_size, kernel_size, kernel_size))
         )
+
+        # if gold_init:
+        #     self.kernels.data = torch.zeros((group_size,kernel_size,kernel_size))
+        #     for i in range(kernel_size):
+        #         for j in range(kernel_size):
+        #             self.kernels.data[i*kernel_size+j][i][j] = 1
         if num_layers:
             self.layer_transforms = nn.ModuleList(
                 [
@@ -139,6 +152,9 @@ class LearnedEquivariance(nn.Module):
                     raise ValueError("Hidden dimension not divisible")
             s = int(math.sqrt(h // c))
             x = x.reshape(-1, c, s, s)
+        elif len(shape) > 4:
+            b, _, _, w, h = shape
+            x = x.reshape(b, -1, w, h)
 
         # x = x.view(shape[0], 1, )  # TODO make this adaptable to more than 1 input channel
         # print("x reshaped", x.shape)
@@ -191,5 +207,6 @@ def equiv_builder(seed: int, config):
         group_size=config.group_size,
         num_layers=config.num_layers,
         output_size=config.output_size,
+        gold_init=config.gold_init,
     )
     return model

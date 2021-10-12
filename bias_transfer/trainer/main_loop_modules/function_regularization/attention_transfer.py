@@ -26,6 +26,9 @@ class AttentionTransfer(RepresentationRegularization):
                     raise ValueError("Hidden dimension not divisible")
             s = int(math.sqrt(h // c))
             x = x.reshape(-1, c, s, s)
+        elif len(shape) > 4:
+            b, _, _, w, h = shape
+            x = x.reshape(b, -1, w, h)
         return x
 
     def rep_distance(self, output, target, *args, **kwargs):
