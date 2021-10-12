@@ -83,6 +83,6 @@ class TransferModel(ClassificationModel):
         self.output_size: int = 10
         self.num_layers: int = 4
         self.kernel_size: int = 5
-        self.group_size: int = 5
+        self.group_size: int = 25
         self.comment = f"MNIST {self.type}"
         super().__init__(**kwargs)
