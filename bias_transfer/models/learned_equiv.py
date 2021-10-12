@@ -6,15 +6,15 @@ import torch.nn.functional as F
 
 
 def is_square(apositiveint):
-    #https://stackoverflow.com/a/2489519
+    # https://stackoverflow.com/a/2489519
     x = apositiveint // 2
     seen = set([x])
     while x * x != apositiveint:
         x = (x + (apositiveint // x)) // 2
-        if x in seen: return False
+        if x in seen:
+            return False
         seen.add(x)
     return True
-
 
 
 class LearnedEquivariance1D(nn.Module):
@@ -97,22 +97,22 @@ class LearnedEquivariance(nn.Module):
             torch.randn((group_size, kernel_size, kernel_size))
         )
         if num_layers:
-            self.layer_transforms = nn.Sequential(
-                *[
+            self.layer_transforms = nn.ModuleList(
+                [
                     nn.Linear(kernel_size ** 2, kernel_size ** 2, bias=True)
                     for _ in range(num_layers - 1)
-                ],
-                nn.Linear(kernel_size ** 2, output_size, bias=True),
+                ]
+                + [nn.Linear(kernel_size ** 2, output_size, bias=True)]
             )
         else:
             self.layer_transforms = None
-        self.full_padding = self.get_padding((kernel_size,kernel_size))
+        self.full_padding = self.get_padding((kernel_size, kernel_size))
         self.reduced_padding = self.get_padding((output_size,))
         self.output_size = output_size
 
     def get_padding(self, kernel_size):
         # copied from: https://pytorch.org/docs/stable/_modules/torch/nn/modules/conv.html#Conv1d
-        dilation = (1,1)
+        dilation = (1, 1)
         padding = [0, 0] * len(kernel_size)
         for d, k, i in zip(dilation, kernel_size, range(len(kernel_size) - 1, -1, -1)):
             total_padding = d * (k - 1)
@@ -156,7 +156,7 @@ class LearnedEquivariance(nn.Module):
         conv_op = F.conv2d
         if self.layer_transforms is not None and l > 0:
             kernel_shape = kernel.shape
-            kernel = self.layer_transforms[: l + 1](kernel.flatten(1))
+            kernel = self.layer_transforms[l](kernel.flatten(1))
             if l == len(self.layer_transforms) - 1:
                 padding = self.reduced_padding
                 conv_op = F.conv1d
@@ -171,7 +171,9 @@ class LearnedEquivariance(nn.Module):
         # print("Kernel", kernel.shape)
         for i in range(n):
             # print("x before", x.shape)
-            x_padded = F.pad(x, padding, mode="circular")  # Troublesome if spatial dimension smaller than padding! (for cirular padding)
+            x_padded = F.pad(
+                x, padding, mode="circular"
+            )  # Troublesome if spatial dimension smaller than padding! (for cirular padding)
             # print("x_padded", x_padded.shape)
             x = conv_op(
                 x_padded,
