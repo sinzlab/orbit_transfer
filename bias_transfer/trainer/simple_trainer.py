@@ -318,13 +318,13 @@ def train(
                 )
             )
             if config.select_on_loss:
-                val_obj = results[-1]["validation"]["acc"]
-                maximize = 1
-            else:
                 val_obj = results[-1]["validation"]["loss"]
                 maximize = -1
+            else:
+                val_obj = results[-1]["validation"]["acc"]
+                maximize = 1
 
-            if val_obj * maximize > best_obj and step > 0:
+            if val_obj * maximize > best_obj * maximize and step > 0:
                 best_obj = val_obj
                 best_model = copy.deepcopy(model.state_dict())
                 patience_counter = 0
