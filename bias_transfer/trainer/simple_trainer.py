@@ -271,7 +271,7 @@ def train(
 
     results = []
     t0 = time.time()
-    best_acc = 0
+    best_obj = 1e10 if config.select_on_loss else 0
     best_model = None
     patience_counter = 0
     decay_counter = 0
@@ -317,10 +317,15 @@ def train(
                     device="cuda",
                 )
             )
-            val_acc = results[-1]["validation"]["acc"]
+            if config.select_on_loss:
+                val_obj = results[-1]["validation"]["acc"]
+                maximize = 1
+            else:
+                val_obj = results[-1]["validation"]["loss"]
+                maximize = -1
 
-            if val_acc > best_acc and step > 0:
-                best_acc = val_acc
+            if val_obj * maximize > best_obj and step > 0:
+                best_obj = val_obj
                 best_model = copy.deepcopy(model.state_dict())
                 patience_counter = 0
             else:
@@ -332,7 +337,7 @@ def train(
                     break
                 decay_counter += 1
                 patience_counter = 0
-            scheduler.step(val_acc)
+            scheduler.step(val_obj)
 
         if step % config.print_every == 0:  # print out training progress
             t1 = time.time()
