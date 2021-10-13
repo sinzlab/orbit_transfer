@@ -57,11 +57,14 @@ def equiv_learn_forward(model, x, y, teacher_model, config):
     n = 1
     h = (g + torch.randint(1, 40, (x.shape[0],))) % 40
     # apply group representation on input
-    transformed_x = model(x.repeat(2, 1, 1), torch.cat([g, h], dim=0))
-    rho_g_x, rho_h_x = (
-        transformed_x[:b],
-        transformed_x[b:],
-    )
+    if config.id_between_filters:
+        transformed_x = model(x.repeat(2, 1, 1), torch.cat([g, h], dim=0))
+        rho_g_x, rho_h_x = (
+            transformed_x[:b],
+            transformed_x[b:],
+        )
+    else:
+        rho_g_x = model(x, g)
     # pass transformed and non-transformed input through the model
     x_combined = torch.cat([x, rho_g_x], dim=0)
     out_combined, final_out = teacher_model(x_combined)
@@ -88,12 +91,23 @@ def equiv_learn_forward(model, x, y, teacher_model, config):
     loss += F.mse_loss(x.squeeze(), inv_rho_g_x.squeeze()) * config.invertible_factor
 
     ### prevent identity solution ###
-    loss += (
-        torch.abs(
-            F.cosine_similarity(rho_h_x.flatten(1), rho_g_x.flatten(1), dim=1, eps=1e-8)
-        ).mean()
-        * config.identity_factor
-    )  # minimize similarity by adding to the loss
+    if config.id_between_filters:
+        loss += (
+            torch.abs(
+                F.cosine_similarity(rho_h_x.flatten(1), rho_g_x.flatten(1), dim=1, eps=1e-8)
+            ).mean()
+            * config.identity_factor
+        )  # minimize similarity by adding to the loss
+    else:
+        kernels = model.kernels.flatten(1)
+        kernels = F.normalize(kernels, dim=1)
+        similarity_matrix = torch.matmul(kernels, kernels.T)
+        similarity_matrix = torch.triu(
+            similarity_matrix, diagonal=1
+        )  # get only entries above diag
+        G = similarity_matrix.shape[0]
+        reg = torch.sum(torch.abs(similarity_matrix)) / ((G * (G - 1)) / 2)
+        loss += reg * config.identity_factor
     return loss, torch.tensor(0.0)
 
 

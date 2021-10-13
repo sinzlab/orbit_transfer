@@ -9,7 +9,7 @@ from nntransfer.analysis.plot import plot
 class ResultsAnalyzer(Analyzer):
     def generate_table(
         self,
-        objective=("Test", "img_classification", "accuracy"),
+        objectives=(("Test", "img_classification", "accuracy"),),
         last_n=0,
         label_steps=False,
     ):
@@ -31,7 +31,8 @@ class ResultsAnalyzer(Analyzer):
                         l = levels.index(level)
                         if labels:
                             l = labels[l]
-                        row[l] = tracker.get_current_objective(objective)
+                        for objective in objectives:
+                            row[f"{l}: {objective[0]}"] = tracker.get_current_objective(objective)
                 except:
                     pass  # no valid entry for this objective
             row_list.append(row)
