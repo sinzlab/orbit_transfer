@@ -1,7 +1,10 @@
+import os
 import torchvision
 import torchvision.transforms as transforms
 
 from bias_transfer.dataset.base_loader import ImageDatasetLoader
+from nntransfer.dataset.dataset_classes.npy_dataset import NpyDataset
+from nntransfer.dataset.img_dataset_loader import DATASET_URLS
 from nntransfer.dataset.utils import get_dataset
 
 
@@ -98,6 +101,43 @@ class TorchvisionDatasetLoader(ImageDatasetLoader):
                 kwargs["split"] = "test"
             else:
                 kwargs["train"] = False
+            test_dataset = dataset_cls(**kwargs)
+        elif config.dataset_cls == "MNIST-C":
+            #download MNIST
+            dataset_dir = get_dataset(
+                DATASET_URLS["MNIST-C"],
+                config.data_dir,
+                dataset_cls=config.dataset_cls,
+            )
+            train_dataset = NpyDataset(
+                samples="train_images.npy",
+                targets="train_labels.npy",
+                root=os.path.join(dataset_dir,"translate"),
+                transform=transform_train,
+                expect_channel_last=True,
+                samples_as_torch=False,
+            )
+            valid_dataset = NpyDataset(
+                samples="train_images.npy",
+                targets="train_labels.npy",
+                root=os.path.join(dataset_dir, "translate"),
+                transform=transform_val,
+                expect_channel_last=True,
+                samples_as_torch=False,
+            )
+            get_dataset(
+                    "http://www.di.ens.fr/~lelarge/MNIST.tar.gz",
+                    config.data_dir,
+                    dataset_cls=config.dataset_cls,
+                )
+
+            dataset_cls = eval("torchvision.datasets.MNIST")
+            kwargs = {
+                "root": config.data_dir,
+                "transform": transform_train,
+                "download": True,
+            }
+            kwargs["transform"] = transform_test
             test_dataset = dataset_cls(**kwargs)
         else:
             raise KeyError()
