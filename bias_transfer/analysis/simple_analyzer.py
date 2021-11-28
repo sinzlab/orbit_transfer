@@ -59,6 +59,10 @@ class SimpleAnalyzer(Analyzer):
                 if len(hyp.split("=")) != 2:
                     continue
                 hyp_name, hyp_value = hyp.split("=")
+                try:
+                    hyp_value = float(hyp_value)
+                except:
+                    pass
                 row[hyp_name] = hyp_value
             levels = sorted(list(results.keys()))
             if last_n:
@@ -87,13 +91,13 @@ class SimpleAnalyzer(Analyzer):
         #         df.drop(columns=["name"], inplace=True)
         #         df["name"] = new[0]
         #         df["hyps"] = new[1]
-            # return df
-            # new = df["hyps"].str.split(" ", expand=True)
-            # if len(new.columns) > 1:
-            #     df.drop(columns=["hyps"], inplace=True)
-            #     for c in new.columns[1:]:
-            #         split = new[c].str.split("=", n=2, expand=True)
-            #         df[split[0][0]] = pd.to_numeric(split[1])
+        # return df
+        # new = df["hyps"].str.split(" ", expand=True)
+        # if len(new.columns) > 1:
+        #     df.drop(columns=["hyps"], inplace=True)
+        #     for c in new.columns[1:]:
+        #         split = new[c].str.split("=", n=2, expand=True)
+        #         df[split[0][0]] = pd.to_numeric(split[1])
         df = df.set_index("name")
         return df
 
@@ -104,61 +108,73 @@ class SimpleAnalyzer(Analyzer):
         fig=None,
         ax=None,
         rename=lambda x: x,
+        names={},
         x_var="gamma",
         x_var_rename="$\gamma$",
         objectives={
-            "0 train": "Train",
-            "0 test": "Test (Seen Shift)",
-            "0 validation": "Validation (Seen Shift)",
+            # "0 train": "Train",
+            "0 test": "Seen Shifts",
+            # "0 validation": "Validation (Seen Shift)",
             # "0 validation_shift": "Validation (Unseen Shift)",
-            "0 test_shift": "Test (Unseen Shift)",
+            "0 test_shift": "Unseen Shifts",
             # "0 validation_all": "Validation (All Shift)",
-            "0 test_all": "Test (All Shift)",
+            "0 test_all": "All Shifts",
         },
+        all_objectives=[
+            "0 test_all",
+            "0 validation_all",
+            "0 validation_shift",
+            "0 validation",
+            "0 test",
+            "0 train",
+            "0 test_shift",
+        ],
+        drop=[],
+        xticks = (),
         **kwargs,
     ):
         df = self.generate_table()
+        id_vars = [c for c in df.columns if c not in all_objectives]
         df = df.rename(columns=objectives)
+        for d in drop:
+            df = df.drop(df[df.index == d].index)
+        df = df.rename(index=names)
 
         value_vars = list(objectives.values())
-        id_vars = [c for c in df.columns if c not in value_vars]
 
         cols = len(ax[0])
-        for i, name in enumerate(df.index.unique()):
+        for i, name in enumerate(names.values()):
             r = i // cols
             c = i % cols
             sub_df = df.loc[df.index == name]
             self.single_plot(
                 sub_df,
                 ax[r][c],
-                legend=(i==0),
+                legend=(i == 0),
                 value_vars=value_vars,
                 id_vars=id_vars,
                 x_var=x_var,
                 x_var_rename=x_var_rename,
-                name=name
+                name=name,
             )
+            if xticks:
+                ax[r][c].set_xticks(xticks)
             if c > 0:
                 ax[r][c].set_ylabel("")
-            if r < len(ax)-1:
                 ax[r][c].set_xlabel("")
-        ax[-1][-1].axis('off')
+            if r < len(ax) - 1:
+                ax[r][c].set_xlabel("")
+        # ax[-1][-1].axis('off')
         ax[0][0].get_legend().remove()
-        fig.legend(bbox_to_anchor=(1.1,0.4))
+        # fig.legend(bbox_to_anchor=(1.1,0.4))
+        fig.legend(loc=(0.28, 0.92), ncol=3, frameon=False)
 
     def single_plot(
-        self,
-        df,
-        ax,
-        legend,
-        value_vars,
-        id_vars,
-        x_var,
-        x_var_rename,
-        name
+        self, df, ax, legend, value_vars, id_vars, x_var, x_var_rename, name
     ):
         max_df = df
-        max_row = df.iloc[[df["Validation (Seen Shift)"].argmax()]]
+        max_row = df.iloc[[df["Seen Shifts"].argmax()]]
+        print(max_row)
         for var in id_vars:
             if var == x_var:
                 continue

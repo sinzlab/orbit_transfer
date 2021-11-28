@@ -26,6 +26,7 @@ class MNISTTransferModel(MNISTModel):
         super().__init__(**kwargs)
 
 
+
 class CNNModel(ClassificationModel):
     """
     vcnn_mnist7 = {

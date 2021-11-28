@@ -28,6 +28,7 @@ from bias_transfer.models.elrg import lenet_builder as elrg_builder
 from bias_transfer.models.elrg import linear_elrg_builder
 from .linear import linear_builder
 from .mlp import mlp_builder
+from .vit import vit_builder
 
 
 def classification_model_builder(data_loader, seed: int, **config):
@@ -58,6 +59,8 @@ def classification_model_builder(data_loader, seed: int, **config):
             model = linear_builder(seed, config)
     elif "mlp" in config.type:
         model = mlp_builder(seed, config)
+    elif "vit" in config.type:
+        model = vit_builder(seed, config)
     elif "gcnn" in config.type:
         model = gcnn_builder(seed, config)
     elif "cnn" in config.type:

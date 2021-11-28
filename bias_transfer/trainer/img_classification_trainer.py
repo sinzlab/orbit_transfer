@@ -94,6 +94,7 @@ class ImgClassificationTrainer(Trainer):
                 cycler_args={},
                 cycler="LongCycler",
             )
+
         optimizer = getattr(optim, self.config.optimizer)(
             self.model.parameters(), **self.config.optimizer_options
         )
