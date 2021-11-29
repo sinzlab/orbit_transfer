@@ -118,6 +118,7 @@ class EquivarianceTransfer(RepresentationRegularization):
         self.hinge_epsilon = self.config.regularization.get("hinge_epsilon", 0.5)
         self.mse_dist = self.config.regularization.get("mse_dist", False)
         self.ramp_up = self.config.regularization.get("ramp_up", {})
+        self.exclude_inv_from_id_loss = self.config.regularization.get("exclude_inv_from_id_loss",False)
 
     def pre_epoch(self, model, mode, **options):
         super().pre_epoch(model, mode, **options)
@@ -132,7 +133,7 @@ class EquivarianceTransfer(RepresentationRegularization):
 
     def post_epoch(self, model):
         # Visualize the STN transformation on some input batch
-        for l in range(5):
+        for l in range(1):
             print(f"Layer {l}")
             visualize_stn(
                 self.teacher,
@@ -158,8 +159,9 @@ class EquivarianceTransfer(RepresentationRegularization):
                 not self.id_between_filters or self.id_between_transforms
             ):
                 h = (g + torch.randint(1, self.group_size, (b,))) % self.group_size
-                minus_g = (-g) % self.group_size
-                h = torch.where(h == minus_g, h + 1, h)
+                if self.exclude_inv_from_id_loss:
+                    minus_g = (-g) % self.group_size
+                    h = torch.where(h == minus_g, h + 1, h)
                 inputs = inputs.repeat(2, 1, 1, 1)
                 g = torch.cat([g, h], dim=0)
                 shared_memory["h"] = h
@@ -270,38 +272,31 @@ class EquivarianceTransfer(RepresentationRegularization):
             kernels = self.teacher.kernels.flatten(1)
         else:
             kernels = self.teacher.theta[0]
+        kernels = F.normalize(kernels, dim=1)
         if self.mse_dist:
-            kernels = F.normalize(kernels, dim=1)
             similarity_matrix = RDL.compute_mse_matrix(kernels, kernels)
         else:
-            kernels = F.normalize(kernels, dim=1)
             similarity_matrix = torch.matmul(kernels, kernels.T)
         G = similarity_matrix.shape[0]
         normalization = (G * (G - 1)) / 2  # upper triangle
-        if not self.mse_dist:
+        if self.mse_dist and self.hinge_epsilon:
+            similarity_matrix = torch.max(
+                self.hinge_epsilon - similarity_matrix,
+                torch.zeros_like(similarity_matrix),
+            )
+            similarity_matrix = (similarity_matrix * 10) ** 2
             similarity_matrix = torch.triu(
                 similarity_matrix, diagonal=1
             )  # get only entries above diag
-            idx = torch.arange(G)
-            idx = (idx * -1) % G
-            similarity_matrix[torch.arange(G), idx] = 0
-            normalization -= G // 2  # removing -g
-        if self.hinge_epsilon:
-            if self.mse_dist:
-                similarity_matrix = torch.max(
-                    self.hinge_epsilon - similarity_matrix,
-                    torch.zeros_like(similarity_matrix),
-                )
-                similarity_matrix = (similarity_matrix * 10) ** 2
-                similarity_matrix = torch.triu(
-                    similarity_matrix, diagonal=1
-                )  # get only entries above diag
-            else:
-                similarity_matrix = torch.max(
-                    self.hinge_epsilon - (1 - similarity_matrix),
-                    torch.zeros_like(similarity_matrix),
-                )
         else:
+            similarity_matrix = torch.triu(
+                similarity_matrix, diagonal=1
+            )  # get only entries above diag
+            if self.exclude_inv_from_id_loss:
+                idx = torch.arange(G)
+                idx = (idx * -1) % G
+                similarity_matrix[torch.arange(G), idx] = 0
+                normalization -= G // 2  # removing -g
             similarity_matrix = torch.abs(similarity_matrix)
         reg = torch.sum(similarity_matrix) / normalization
         self.tracker.log_objective(
