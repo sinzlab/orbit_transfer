@@ -139,7 +139,8 @@ class LearnedEquivariance(nn.Module):
     def forward(self, x, g=None, l=0, n=1):
         if g is None:
             return 0
-        if self.vit_input and l != 0:
+        last_layer = l == len(self.layer_transforms) and self.handle_output_layer
+        if self.vit_input and l != 0 and not last_layer:
             cls_token = x[:, -1:]
             x = x[:, :-1]
             s = x.shape[1]
@@ -159,7 +160,7 @@ class LearnedEquivariance(nn.Module):
         if self.layer_transforms is not None and l > 0:
             kernel_shape = kernel.shape
             kernel = self.layer_transforms[l - 1](kernel.flatten(1))
-            if l == len(self.layer_transforms) and self.handle_output_layer:
+            if last_layer:
                 padding = self.reduced_padding
                 conv_op = F.conv1d
             else:
@@ -178,7 +179,7 @@ class LearnedEquivariance(nn.Module):
             )
         x = x.transpose(0, 1)
         x = x.reshape(shape)
-        if self.vit_input and l != 0:
+        if self.vit_input and l != 0 and not last_layer:
             x = rearrange(x, "b c h w -> b (h w) c")
             x = torch.cat([x, cls_token], dim=1)
         return x, None
