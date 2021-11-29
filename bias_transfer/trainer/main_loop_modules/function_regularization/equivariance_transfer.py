@@ -41,7 +41,7 @@ def visualize_stn(model, test_loader, device, max_g, l):
         input_tensor = data.cpu()
         print(input_tensor.shape)
         transformed_input_tensor = model(data, g=g, l=l)[0].cpu()
-        if l !=0:
+        if l != 0:
             transformed_input_tensor = transformed_input_tensor.squeeze()
             input_tensor = input_tensor.squeeze()
         in_grid = convert_image_np(torchvision.utils.make_grid(input_tensor))
@@ -118,15 +118,20 @@ class EquivarianceTransfer(RepresentationRegularization):
         self.hinge_epsilon = self.config.regularization.get("hinge_epsilon", 0.5)
         self.mse_dist = self.config.regularization.get("mse_dist", False)
         self.ramp_up = self.config.regularization.get("ramp_up", {})
-        self.exclude_inv_from_id_loss = self.config.regularization.get("exclude_inv_from_id_loss",False)
+        self.exclude_inv_from_id_loss = self.config.regularization.get(
+            "exclude_inv_from_id_loss", False
+        )
+        self.inv_for_all_layers = self.config.regularization.get(
+            "inv_for_all_layers", False
+        )
         self.visualize = self.config.regularization.get("visualize", False)
 
     def pre_epoch(self, model, mode, **options):
         super().pre_epoch(model, mode, **options)
         for name in ("ce", "inv", "id", "equiv"):
             final_val = getattr(self, f"_{name}_factor")
-            if name in self.ramp_up and self.epoch <= self.ramp_up[name] :
-                step_size= final_val / self.ramp_up[name]
+            if name in self.ramp_up and self.epoch <= self.ramp_up[name]:
+                step_size = final_val / self.ramp_up[name]
                 current_val = step_size * self.epoch
                 setattr(self, f"{name}_factor", current_val)
             else:
@@ -237,11 +242,12 @@ class EquivarianceTransfer(RepresentationRegularization):
                     n=n,
                     l=0,
                 )
-                # invertibility loss for each layer
-                for l, layer in enumerate(layers):
-                    equiv_loss += self.enforce_invertible(
-                        extra_outputs[layer][:b], rho_g_phi_x[l], g=g, n=n, l=l + 1
-                    )
+                if self.inv_for_all_layers:
+                    # invertibility loss for each layer
+                    for l, layer in enumerate(layers):
+                        equiv_loss += self.enforce_invertible(
+                            extra_outputs[layer][:b], rho_g_phi_x[l], g=g, n=n, l=l + 1
+                        )
                 if self.id_between_filters:
                     equiv_loss += self.prevent_identity_between_filters(batch_size=b)
                 else:
