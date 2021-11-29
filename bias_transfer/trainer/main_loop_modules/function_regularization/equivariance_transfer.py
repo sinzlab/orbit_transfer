@@ -119,6 +119,7 @@ class EquivarianceTransfer(RepresentationRegularization):
         self.mse_dist = self.config.regularization.get("mse_dist", False)
         self.ramp_up = self.config.regularization.get("ramp_up", {})
         self.exclude_inv_from_id_loss = self.config.regularization.get("exclude_inv_from_id_loss",False)
+        self.visualize = self.config.regularization.get("visualize", False)
 
     def pre_epoch(self, model, mode, **options):
         super().pre_epoch(model, mode, **options)
@@ -133,17 +134,18 @@ class EquivarianceTransfer(RepresentationRegularization):
 
     def post_epoch(self, model):
         # Visualize the STN transformation on some input batch
-        for l in range(1):
-            print(f"Layer {l}")
-            visualize_stn(
-                self.teacher,
-                self.train_loader["img_classification"],
-                device="cuda",
-                max_g=self.group_size,
-                l=l,
-            )
-            plt.ioff()
-            plt.show()
+        if self.visualize:
+            for l in range(1):
+                print(f"Layer {l}")
+                visualize_stn(
+                    self.teacher,
+                    self.train_loader["img_classification"],
+                    device="cuda",
+                    max_g=self.group_size,
+                    l=l,
+                )
+                plt.ioff()
+                plt.show()
 
     def pre_forward(self, model, inputs, task_key, shared_memory):
         if self.mode in ("Training", "Validation", "Test"):
@@ -226,7 +228,7 @@ class EquivarianceTransfer(RepresentationRegularization):
             self.tracker.log_objective(
                 mse.item() * b, (self.mode, self.name, "distance")
             )
-            equiv_loss += mse
+            equiv_loss = equiv_loss + mse
             if self.learn_equiv:
                 equiv_loss += self.enforce_invertible(
                     shared_memory["inputs"],
