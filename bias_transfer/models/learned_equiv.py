@@ -148,7 +148,7 @@ class LearnedEquivariance(nn.Module):
             )
         shape = x.shape
         x = self.reshape_input(x)
-        g %= self.kernels.shape[0]
+        g = g % self.kernels.shape[0]
 
         x = x.transpose(
             0, 1
