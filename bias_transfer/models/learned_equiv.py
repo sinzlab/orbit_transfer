@@ -98,16 +98,17 @@ class LearnedEquivariance(nn.Module):
         gold_init=False,
         vit_input=False,
         handle_output_layer=True,
-        first_layer_no_transform = True
+        first_layer_transform = True
     ):
         super().__init__()
         self.kernels = torch.nn.Parameter(
             torch.randn((group_size, kernel_size, kernel_size))
         )
+        self.first_layer_no_transform = not first_layer_transform
         if num_layers:
             if handle_output_layer:
                 num_layers -= 1
-            if first_layer_no_transform:
+            if self.first_layer_no_transform:
                 num_layers -= 1
             self.layer_transforms = nn.ModuleList(
                 [
@@ -127,7 +128,6 @@ class LearnedEquivariance(nn.Module):
         self.output_size = output_size
         self.vit_input = vit_input
         self.handle_output_layer = handle_output_layer
-        self.first_layer_no_transform = first_layer_no_transform
 
     def reshape_input(self, x):
         shape = x.shape
@@ -1064,5 +1064,6 @@ def equiv_builder(seed: int, config):
             num_layers=config.num_layers,
             output_size=config.output_size,
             vit_input=config.vit_input,
+            first_layer_transform=config.first_layer_transform
         )
     return model
