@@ -98,6 +98,7 @@ class LearnedEquivariance(nn.Module):
         gold_init=False,
         vit_input=False,
         handle_output_layer=True,
+        first_layer_no_transform = True
     ):
         super().__init__()
         self.kernels = torch.nn.Parameter(
@@ -105,6 +106,8 @@ class LearnedEquivariance(nn.Module):
         )
         if num_layers:
             if handle_output_layer:
+                num_layers -= 1
+            if first_layer_no_transform:
                 num_layers -= 1
             self.layer_transforms = nn.ModuleList(
                 [
@@ -124,6 +127,7 @@ class LearnedEquivariance(nn.Module):
         self.output_size = output_size
         self.vit_input = vit_input
         self.handle_output_layer = handle_output_layer
+        self.first_layer_no_transform = first_layer_no_transform
 
     def reshape_input(self, x):
         shape = x.shape
@@ -137,10 +141,13 @@ class LearnedEquivariance(nn.Module):
         return x
 
     def forward(self, x, g=None, l=0, n=1):
+        not_input = l > 0
+        if self.first_layer_no_transform and not_input:
+            l -= 1
         if g is None:
             return 0
         last_layer = l == len(self.layer_transforms) and self.handle_output_layer
-        if self.vit_input and l != 0 and not last_layer:
+        if self.vit_input and not_input and not last_layer:
             cls_token = x[:, -1:]
             x = x[:, :-1]
             s = x.shape[1]
@@ -157,7 +164,7 @@ class LearnedEquivariance(nn.Module):
         kernel = self.kernels[g]
         padding = self.full_padding
         conv_op = F.conv2d
-        if self.layer_transforms is not None and l > 0:
+        if self.layer_transforms is not None and l > 0:  # not input and in some cases not first layer
             kernel_shape = kernel.shape
             kernel = self.layer_transforms[l - 1](kernel.flatten(1))
             if last_layer:
@@ -179,7 +186,7 @@ class LearnedEquivariance(nn.Module):
             )
         x = x.transpose(0, 1)
         x = x.reshape(shape)
-        if self.vit_input and l != 0 and not last_layer:
+        if self.vit_input and not_input and not last_layer:
             x = rearrange(x, "b c h w -> b (h w) c")
             x = torch.cat([x, cls_token], dim=1)
         return x, None
