@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from einops import rearrange, repeat
 from vit_pytorch.vit import Transformer
+from vit_pytorch.vit import ViT as OrigViT
 
 
 class ViT(nn.Module):
@@ -54,14 +55,29 @@ class ViT(nn.Module):
 
 
 def vit_builder(seed: int, config):
-    model = ViT(
-        image_size=config.image_size,
-        patch_size=config.patch_size,
-        num_classes=config.num_classes,
-        channels=config.channels,
-        dim=config.dim,
-        depth=config.depth,
-        heads=config.heads,
-        mlp_dim=config.mlp_dim,
-    )
+    if config.orig_vit:
+        model = OrigViT(
+            image_size=config.image_size,
+            patch_size=config.patch_size,
+            num_classes=config.num_classes,
+            channels=config.channels,
+            dim=config.dim,
+            depth=config.depth,
+            heads=config.heads,
+            mlp_dim=config.mlp_dim,
+            dropout=config.dropout,
+            emb_dropout=config.emb_dropout,
+            dim_head=config.mlp_dim,
+        )
+    else:
+        model = ViT(
+            image_size=config.image_size,
+            patch_size=config.patch_size,
+            num_classes=config.num_classes,
+            channels=config.channels,
+            dim=config.dim,
+            depth=config.depth,
+            heads=config.heads,
+            mlp_dim=config.mlp_dim,
+        )
     return model
