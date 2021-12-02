@@ -3,6 +3,7 @@ import math
 from torch import nn
 import torch
 import torch.nn.functional as F
+from einops import rearrange, repeat
 
 from bias_transfer.models.learned_equiv import is_square
 from .representation import RepresentationRegularization
@@ -11,12 +12,19 @@ from .representation import RepresentationRegularization
 class AttentionTransfer(RepresentationRegularization):
     def __init__(self, trainer):
         super().__init__(trainer, name="Attention")
+        self.vit_input = self.config.regularization.get("vit_input")
 
     def to_spatial(self, x):
         shape = x.shape
         # if len(shape) < 3 and shape[1] == self.output_size:  # We are in the final layer
         #     x = x.unsqueeze(1)
-        if len(shape) < 4:
+        if self.vit_input and len(shape) < 4:
+            x = x[:, :-1]  # get rid of cls-token
+            s = x.shape[1]
+            x = rearrange(
+                x, "b (h w) c -> b c h w", h=int(math.sqrt(s)), w=int(math.sqrt(s))
+            )
+        elif len(shape) < 4:
             # find decomposition into channels and spatial dimensions that works
             h = shape[1]
             c = 1

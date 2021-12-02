@@ -174,7 +174,7 @@ class EquivarianceTransfer(RepresentationRegularization):
                 shared_memory["h"] = h
             # apply group representation on input
             rho_g_inputs, transform_g = self.teacher(inputs, g=g, l=0, n=n)
-            if self.learn_equiv:
+            if self.learn_equiv :
                 if not self.id_between_filters or self.id_between_transforms:
                     rho_g_inputs, rho_h_inputs = (
                         rho_g_inputs[:b],
@@ -218,46 +218,51 @@ class EquivarianceTransfer(RepresentationRegularization):
                 for l, layer in enumerate(layers)
             ]
             # minimize distance
-            equiv_loss = self.ce_factor * F.cross_entropy(
-                outputs[1].flatten(1)[b:], targets, reduction="mean"
-            )
-            self.tracker.log_objective(
-                equiv_loss.item() * b, (self.mode, self.name, "CE")
-            )
-            mse = (
-                F.mse_loss(
-                    torch.cat([x.flatten(1) for x in rho_g_phi_x], dim=1), phi_rho_g_x
+            equiv_loss = 0.0
+            if self.ce_factor != 0.0:
+                equiv_loss = self.ce_factor * F.cross_entropy(
+                    outputs[1].flatten(1)[b:], targets, reduction="mean"
                 )
-                * self.equiv_factor
-            )
-            self.tracker.log_objective(
-                mse.item() * b, (self.mode, self.name, "distance")
-            )
-            equiv_loss = equiv_loss + mse
+                self.tracker.log_objective(
+                    equiv_loss.item() * b, (self.mode, self.name, "CE")
+                )
+            if self.equiv_factor != 0.0:
+                mse = (
+                    F.mse_loss(
+                        torch.cat([x.flatten(1) for x in rho_g_phi_x], dim=1), phi_rho_g_x
+                    )
+                    * self.equiv_factor
+                )
+                self.tracker.log_objective(
+                    mse.item() * b, (self.mode, self.name, "distance")
+                )
+                equiv_loss = equiv_loss + mse
             if self.learn_equiv:
-                equiv_loss += self.enforce_invertible(
-                    shared_memory["inputs"],
-                    shared_memory["rho_g_inputs"],
-                    g=g,
-                    n=n,
-                    l=0,
-                )
-                if self.inv_for_all_layers:
-                    # invertibility loss for each layer
-                    for l, layer in enumerate(layers):
-                        equiv_loss += self.enforce_invertible(
-                            extra_outputs[layer][:b], rho_g_phi_x[l], g=g, n=n, l=l + 1
+                if self.inv_factor != 0.0:
+                    equiv_loss += self.enforce_invertible(
+                        shared_memory["inputs"],
+                        shared_memory["rho_g_inputs"],
+                        g=g,
+                        n=n,
+                        l=0,
+                    )
+                    if self.inv_for_all_layers:
+                        # invertibility loss for each layer
+                        for l, layer in enumerate(layers):
+                            equiv_loss += self.enforce_invertible(
+                                extra_outputs[layer][:b], rho_g_phi_x[l], g=g, n=n, l=l + 1
+                            )
+                if self.id_factor != 0.0:
+                    if self.id_between_filters:
+                        equiv_loss += self.prevent_identity_between_filters(batch_size=b)
+                    else:
+                        equiv_loss += self.prevent_identity(
+                            shared_memory["rho_g_inputs"], shared_memory["rho_h_inputs"]
                         )
-                if self.id_between_filters:
-                    equiv_loss += self.prevent_identity_between_filters(batch_size=b)
-                else:
-                    equiv_loss += self.prevent_identity(
-                        shared_memory["rho_g_inputs"], shared_memory["rho_h_inputs"]
-                    )
-                if self.id_between_transforms:
-                    equiv_loss += self.prevent_identity(
-                        shared_memory["transform_g"], shared_memory["transform_h"]
-                    )
+                    if self.id_between_transforms:
+                        equiv_loss += self.prevent_identity(
+                            shared_memory["transform_g"], shared_memory["transform_h"]
+                        )
 
             loss += self.gamma * equiv_loss
             self.tracker.log_objective(b, (self.mode, self.name, "normalization"))
@@ -278,6 +283,8 @@ class EquivarianceTransfer(RepresentationRegularization):
     def prevent_identity_between_filters(self, batch_size):
         if hasattr(self.teacher, "kernels"):
             kernels = self.teacher.kernels.flatten(1)
+        elif self.teacher.gaussian_transform:
+            kernels = self.teacher.bias[0]
         else:
             kernels = self.teacher.theta[0]
         kernels = F.normalize(kernels, dim=1)

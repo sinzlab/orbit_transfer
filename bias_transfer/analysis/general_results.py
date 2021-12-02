@@ -21,7 +21,7 @@ class ResultsAnalyzer(Analyzer):
                 labels = name_split[-1][1:-1].split(";")
             else:
                 name, labels = (desc.name, None)
-            row = {"name": name}
+            row = {"name": name, "seed": desc.seed}
             levels = sorted(list(results.keys()))
             if last_n:
                 levels = levels[(-1) * last_n :]
@@ -38,7 +38,7 @@ class ResultsAnalyzer(Analyzer):
             row_list.append(row)
         df = pd.DataFrame(row_list)
         if not df.empty:
-            df = df.groupby("name").first()
+            # df = df.groupby("name").first()
             # Split off alpha from name
             df = df.reset_index()
             new = df["name"].str.split(":", n=1, expand=True)

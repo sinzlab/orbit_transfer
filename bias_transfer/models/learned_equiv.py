@@ -98,7 +98,7 @@ class LearnedEquivariance(nn.Module):
         gold_init=False,
         vit_input=False,
         handle_output_layer=True,
-        first_layer_transform = True
+        first_layer_transform=True,
     ):
         super().__init__()
         self.kernels = torch.nn.Parameter(
@@ -164,7 +164,9 @@ class LearnedEquivariance(nn.Module):
         kernel = self.kernels[g]
         padding = self.full_padding
         conv_op = F.conv2d
-        if self.layer_transforms is not None and l > 0:  # not input and in some cases not first layer
+        if (
+            self.layer_transforms is not None and l > 0
+        ):  # not input and in some cases not first layer
             kernel_shape = kernel.shape
             kernel = self.layer_transforms[l - 1](kernel.flatten(1))
             if last_layer:
@@ -587,6 +589,7 @@ class LearnedEquivarianceSTSimple(nn.Module):
         handle_output_layer=True,
         include_channels=False,
         prevent_translation=False,
+        gaussian_transform=False,
     ):
         super().__init__()
         assert not (only_translation and prevent_translation)
@@ -638,50 +641,61 @@ class LearnedEquivarianceSTSimple(nn.Module):
         for l in range(num_layers + 1):
             for g in range(group_size):
                 transform = identity_tensor.clone()
-                angle, translate, scale, shear = self.get_init_params(
-                    degrees=(0, 360),
-                    translate=(0.1, 0.1),  # dx, dy
-                    scale_ranges=(0.8, 1.2),  # min, max
-                    shears=(0.0, 15.0, 0.0, 15.0),
-                )
-                translate_f = [1.0 * t for t in translate]
-                m = torch.tensor(
-                    _get_inverse_affine_matrix(
-                        [0.0, 0.0], angle, translate_f, scale, shear
-                    )
-                ).reshape(2, 3)
-                if include_channels:
-                    transform = torch.eye(4, 4)
-                    transform[:2, :2] = m[:, :2]
-                    transform[:2, 3:] = m[:, 2:]
-                    # transform[2, 3] = torch.empty(1).uniform_(-0.1, 0.1).item()
-                    # x_angle = float(torch.empty(1).uniform_(0.0, 360.0).item())
-                    # y_angle = float(torch.empty(1).uniform_(0.0, 360.0).item())
-                    # x_rot = math.radians(x_angle)
-                    # y_rot = math.radians(y_angle)
-                    # transform = transform @ torch.tensor(
-                    #     [
-                    #         [1, 0, 0, 0],
-                    #         [0, math.cos(x_rot), -math.sin(x_rot), 0],
-                    #         [0, math.sin(x_rot), math.cos(x_rot), 0],
-                    #         [0,0,0,1]
-                    #     ]
-                    # )
-                    # transform = transform @ torch.tensor(
-                    #     [
-                    #         [math.cos(y_rot), 0, math.sin(y_rot), 0],
-                    #         [0, 1, 0, 0],
-                    #         [-math.sin(y_rot), 0, math.cos(y_rot), 0],
-                    #         [0, 0, 0, 1]
-                    #     ]
-                    # )
-                    transform = transform[:3]
-                else:
-                    transform = m
+                # angle, translate, scale, shear = self.get_init_params(
+                #     degrees=(0, 360),
+                #     translate=(0.1, 0.1),  # dx, dy
+                #     scale_ranges=(0.8, 1.2),  # min, max
+                #     shears=(0.0, 15.0, 0.0, 15.0),
+                # )
+                # translate_f = [1.0 * t for t in translate]
+                # m = torch.tensor(
+                #     _get_inverse_affine_matrix(
+                #         [0.0, 0.0], angle, translate_f, scale, shear
+                #     )
+                # ).reshape(2, 3)
+                # if include_channels:
+                #     transform = torch.eye(4, 4)
+                #     transform[:2, :2] = m[:, :2]
+                #     transform[:2, 3:] = m[:, 2:]
+                #     # transform[2, 3] = torch.empty(1).uniform_(-0.1, 0.1).item()
+                #     # x_angle = float(torch.empty(1).uniform_(0.0, 360.0).item())
+                #     # y_angle = float(torch.empty(1).uniform_(0.0, 360.0).item())
+                #     # x_rot = math.radians(x_angle)
+                #     # y_rot = math.radians(y_angle)
+                #     # transform = transform @ torch.tensor(
+                #     #     [
+                #     #         [1, 0, 0, 0],
+                #     #         [0, math.cos(x_rot), -math.sin(x_rot), 0],
+                #     #         [0, math.sin(x_rot), math.cos(x_rot), 0],
+                #     #         [0,0,0,1]
+                #     #     ]
+                #     # )
+                #     # transform = transform @ torch.tensor(
+                #     #     [
+                #     #         [math.cos(y_rot), 0, math.sin(y_rot), 0],
+                #     #         [0, 1, 0, 0],
+                #     #         [-math.sin(y_rot), 0, math.cos(y_rot), 0],
+                #     #         [0, 0, 0, 1]
+                #     #     ]
+                #     # )
+                #     transform = transform[:3]
+                # else:
+                #     transform = m
                 init[l][g] = transform
 
         init = init.flatten(2)
-        self.theta = nn.Parameter(init)
+        self.gaussian_transform = gaussian_transform
+        if self.gaussian_transform:
+            self.bias = nn.Parameter(init)
+            # self.weight = nn.Parameter(
+            #     torch.eye(self.transform_params).repeat(num_layers+1,group_size,1,1)
+            #     + 0.03 * torch.randn((num_layers+1,group_size,self.transform_params, self.transform_params))
+            # )
+            self.weight = nn.Parameter(
+                torch.ones(num_layers+1,self.transform_params) * 0.5
+            )
+        else:
+            self.theta = nn.Parameter(init)
         # self.group_enc = nn.Parameter(torch.randn(group_size,self.transform_params))
         self.include_channels = include_channels
         self.handle_output_layer = handle_output_layer
@@ -725,7 +739,12 @@ class LearnedEquivarianceSTSimple(nn.Module):
 
     # Spatial transformer network forward function
     def forward(self, x, g, l=0, *args, **kwargs):
-        theta = self.theta[l][g]
+        if self.gaussian_transform:
+            bias = self.bias[l][g]
+            weight = self.weight[l]
+            theta = torch.randn(bias.shape, device=weight.device) * weight + bias
+        else:
+            theta = self.theta[l][g]
         # if l > 0:
         #     theta = self.layer_transforms[l - 1](theta)
         # print("Theta", theta)
@@ -1054,6 +1073,7 @@ def equiv_builder(seed: int, config):
             only_translation=config.only_translation,
             prevent_translation=config.prevent_translation,
             include_channels=config.include_channels,
+            gaussian_transform=config.gaussian_transform
         )
     elif config.patch_net:
         model = LearnedEquivariancePatchNet(patch_size=config.patch_size)
@@ -1064,6 +1084,6 @@ def equiv_builder(seed: int, config):
             num_layers=config.num_layers,
             output_size=config.output_size,
             vit_input=config.vit_input,
-            first_layer_transform=config.first_layer_transform
+            first_layer_transform=config.first_layer_transform,
         )
     return model
