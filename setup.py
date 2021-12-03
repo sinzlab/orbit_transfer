@@ -7,5 +7,7 @@ setup(
    author='Arne Nix',
    author_email='arnenix@googlemail.com',
    packages=['bias_transfer'],  #same as name
-   install_requires=[], #external packages as dependencies
+   install_requires=[
+      "vit-pytorch",
+   ], #external packages as dependencies
 )
