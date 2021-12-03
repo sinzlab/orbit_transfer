@@ -590,6 +590,8 @@ class LearnedEquivarianceSTSimple(nn.Module):
         include_channels=False,
         prevent_translation=False,
         gaussian_transform=False,
+        random_transform_init=False,
+        gaussian_std_init=0.1,
     ):
         super().__init__()
         assert not (only_translation and prevent_translation)
@@ -641,58 +643,55 @@ class LearnedEquivarianceSTSimple(nn.Module):
         for l in range(num_layers + 1):
             for g in range(group_size):
                 transform = identity_tensor.clone()
-                # angle, translate, scale, shear = self.get_init_params(
-                #     degrees=(0, 360),
-                #     translate=(0.1, 0.1),  # dx, dy
-                #     scale_ranges=(0.8, 1.2),  # min, max
-                #     shears=(0.0, 15.0, 0.0, 15.0),
-                # )
-                # translate_f = [1.0 * t for t in translate]
-                # m = torch.tensor(
-                #     _get_inverse_affine_matrix(
-                #         [0.0, 0.0], angle, translate_f, scale, shear
-                #     )
-                # ).reshape(2, 3)
-                # if include_channels:
-                #     transform = torch.eye(4, 4)
-                #     transform[:2, :2] = m[:, :2]
-                #     transform[:2, 3:] = m[:, 2:]
-                #     # transform[2, 3] = torch.empty(1).uniform_(-0.1, 0.1).item()
-                #     # x_angle = float(torch.empty(1).uniform_(0.0, 360.0).item())
-                #     # y_angle = float(torch.empty(1).uniform_(0.0, 360.0).item())
-                #     # x_rot = math.radians(x_angle)
-                #     # y_rot = math.radians(y_angle)
-                #     # transform = transform @ torch.tensor(
-                #     #     [
-                #     #         [1, 0, 0, 0],
-                #     #         [0, math.cos(x_rot), -math.sin(x_rot), 0],
-                #     #         [0, math.sin(x_rot), math.cos(x_rot), 0],
-                #     #         [0,0,0,1]
-                #     #     ]
-                #     # )
-                #     # transform = transform @ torch.tensor(
-                #     #     [
-                #     #         [math.cos(y_rot), 0, math.sin(y_rot), 0],
-                #     #         [0, 1, 0, 0],
-                #     #         [-math.sin(y_rot), 0, math.cos(y_rot), 0],
-                #     #         [0, 0, 0, 1]
-                #     #     ]
-                #     # )
-                #     transform = transform[:3]
-                # else:
-                #     transform = m
+                angle, translate, scale, shear = self.get_init_params(
+                    degrees=(0, 360),
+                    translate=(0.1, 0.1),  # dx, dy
+                    scale_ranges=(0.8, 1.2),  # min, max
+                    shears=(0.0, 15.0, 0.0, 15.0),
+                )
+                translate_f = [1.0 * t for t in translate]
+                m = torch.tensor(
+                    _get_inverse_affine_matrix(
+                        [0.0, 0.0], angle, translate_f, scale, shear
+                    )
+                ).reshape(2, 3)
+                if include_channels:
+                    transform = torch.eye(4, 4)
+                    if random_transform_init:
+                        transform[:2, :2] = m[:, :2]
+                        transform[:2, 3:] = m[:, 2:]
+                        transform[2, 3] = torch.empty(1).uniform_(-0.1, 0.1).item()
+                        x_angle = float(torch.empty(1).uniform_(0.0, 360.0).item())
+                        y_angle = float(torch.empty(1).uniform_(0.0, 360.0).item())
+                        x_rot = math.radians(x_angle)
+                        y_rot = math.radians(y_angle)
+                        transform = transform @ torch.tensor(
+                            [
+                                [1, 0, 0, 0],
+                                [0, math.cos(x_rot), -math.sin(x_rot), 0],
+                                [0, math.sin(x_rot), math.cos(x_rot), 0],
+                                [0,0,0,1]
+                            ]
+                        )
+                        transform = transform @ torch.tensor(
+                            [
+                                [math.cos(y_rot), 0, math.sin(y_rot), 0],
+                                [0, 1, 0, 0],
+                                [-math.sin(y_rot), 0, math.cos(y_rot), 0],
+                                [0, 0, 0, 1]
+                            ]
+                        )
+                    transform = transform[:3]
+                else:
+                    transform = m
                 init[l][g] = transform
 
         init = init.flatten(2)
         self.gaussian_transform = gaussian_transform
         if self.gaussian_transform:
             self.bias = nn.Parameter(init)
-            # self.weight = nn.Parameter(
-            #     torch.eye(self.transform_params).repeat(num_layers+1,group_size,1,1)
-            #     + 0.03 * torch.randn((num_layers+1,group_size,self.transform_params, self.transform_params))
-            # )
             self.weight = nn.Parameter(
-                torch.ones(num_layers+1,self.transform_params) * 0.5
+                torch.ones(num_layers + 1, self.transform_params) * gaussian_std_init
             )
         else:
             self.theta = nn.Parameter(init)
@@ -700,6 +699,7 @@ class LearnedEquivarianceSTSimple(nn.Module):
         self.include_channels = include_channels
         self.handle_output_layer = handle_output_layer
         self.num_layers = num_layers
+        self.group_size = group_size
 
     @staticmethod
     def get_init_params(degrees, translate, scale_ranges, shears):
@@ -1073,7 +1073,9 @@ def equiv_builder(seed: int, config):
             only_translation=config.only_translation,
             prevent_translation=config.prevent_translation,
             include_channels=config.include_channels,
-            gaussian_transform=config.gaussian_transform
+            gaussian_transform=config.gaussian_transform,
+            random_transform_init=config.random_transform_init,
+            gaussian_std_init=config.gaussian_std_init,
         )
     elif config.patch_net:
         model = LearnedEquivariancePatchNet(patch_size=config.patch_size)
