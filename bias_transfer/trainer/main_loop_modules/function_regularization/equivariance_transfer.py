@@ -168,6 +168,7 @@ class EquivarianceTransfer(RepresentationRegularization):
         )
         self.visualize = self.config.regularization.get("visualize", False)
         self.cut_input_grad = self.config.regularization.get("cut_input_grad", True)
+        self.clamp_input = self.config.regularization.get("clamp_input", True)
 
     def pre_epoch(self, model, mode, **options):
         super().pre_epoch(model, mode, **options)
@@ -242,6 +243,8 @@ class EquivarianceTransfer(RepresentationRegularization):
             shared_memory["n"] = n
             # pass transformed and non-transformed input through the model
             inputs = torch.cat([inputs, rho_g_inputs], dim=0)
+        if self.clamp_input:
+            inputs = torch.clamp(inputs, max=1, min=0)
         if self.cut_input_grad:
             inputs = inputs.detach()
         return model, inputs
